@@ -1,0 +1,20 @@
+{
+    "name": "wildphp/module-uno",
+    "description": "UNO game module for WildPHP",
+    "license": "GPL-3.0",
+    "authors": [
+        {
+            "name": "Yoshi2889",
+            "email": "rick.2889@gmail.com"
+        }
+    ],
+    "require": {
+    },
+    "autoload": {
+        "psr-4": {
+            "WildPHP\\Modules\\Uno\\": "src"
+        }
+    },
+    "minimum-stability": "alpha",
+    "prefer-stable": true
+}

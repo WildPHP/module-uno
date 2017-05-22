@@ -19,6 +19,7 @@
 
 namespace WildPHP\Modules\Uno;
 
+use Flintstone\Config;
 use WildPHP\Core\Channels\Channel;
 
 use WildPHP\Core\Commands\CommandHandler;
@@ -206,6 +207,13 @@ class Uno
 		{
 			Queue::fromContainer($container)
 				->privmsg($source->getName(), 'A game has not been started in this channel.');
+
+			return;
+		}
+		if ($game->isStarted())
+		{
+			Queue::fromContainer($container)
+				->privmsg($source->getName(), 'A game is already in progress in this channel.');
 
 			return;
 		}

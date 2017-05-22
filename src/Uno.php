@@ -76,11 +76,15 @@ class Uno
 		CommandHandler::fromContainer($container)
 			->alias('pass', 'pa');
 		CommandHandler::fromContainer($container)
+			->alias('pass', 'ps');
+		CommandHandler::fromContainer($container)
 			->alias('draw', 'dr');
 		CommandHandler::fromContainer($container)
 			->alias('color', 'c');
 		CommandHandler::fromContainer($container)
 			->alias('validmoves', 'vm');
+		CommandHandler::fromContainer($container)
+			->alias('cards', 'lcr');
 
 		EventEmitter::fromContainer($container)
 			->on('uno.populated', [$this, 'notifyNewCards']);
@@ -254,14 +258,23 @@ class Uno
 		if (!$game || $game->isStarted() || $game->isParticipant($user))
 		{
 			Queue::fromContainer($container)
-				->privmsg($source->getName(), 'A game has not been started, is already running, or you are already a participant.');
+				->privmsg($source->getName(), $user->getNickname() . ': A game has not been started, is already running, or you are already a participant.');
 
 			return;
 		}
 
 		$game->addParticipant($user);
 		Queue::fromContainer($container)
-			->privmsg($source->getName(), 'You have joined the UNO game.');
+			->privmsg($source->getName(), $user->getNickname() . ': You have joined the UNO game. Please take a moment to read the basic rules you received in a private message.');
+
+		$prefix = Configuration::fromContainer($container)->get('prefix')->getValue();
+		Queue::fromContainer($container)
+			->notice($user->getNickname(), 'You will be assigned 10 cards when you join the game. The objective is to get rid of all your cards first. To play a card, use the ' . $prefix . 'play command (alias ' . $prefix . 'pl).');
+		Queue::fromContainer($container)
+			->notice($user->getNickname(), 'If you cannot play a valid card (check with ' . $prefix . 'validmoves (alias ' . $prefix . 'vm), you must draw a card (' . $prefix . 'draw/' . $prefix . 'dr)');
+		Queue::fromContainer($container)
+			->notice($user->getNickname(), 'If after drawing a card you still cannot play, pass your turn with ' . $prefix . 'pass/' . $prefix . 'pa. Special cards are: #r: Reverse, #s: Skip, #d: Draw Two, w: Wildcard, wd: Wild Draw Four.');
+
 		$this->noticeCardsToUser($user->getNickname(), $game->getDeckForUser($user));
 	}
 
@@ -271,7 +284,7 @@ class Uno
 		if (!$game || !$game->isStarted() || !$game->isParticipant($user))
 		{
 			Queue::fromContainer($container)
-				->privmsg($source->getName(), 'A game has not been started or you are no participant.');
+				->privmsg($source->getName(), $user->getNickname() . ': A game has not been started or you are no participant.');
 
 			return;
 		}
@@ -287,7 +300,7 @@ class Uno
 		if (!$game || !$game->isStarted() || !$game->isParticipant($user))
 		{
 			Queue::fromContainer($container)
-				->privmsg($source->getName(), 'A game has not been started or you are no participant.');
+				->privmsg($source->getName(), $user->getNickname() . ': A game has not been started or you are no participant.');
 
 			return;
 		}
@@ -295,7 +308,7 @@ class Uno
 		if (($nickname = $game->waitingOnPlayerColor()))
 		{
 			Queue::fromContainer($container)
-				->privmsg($source->getName(), 'Waiting for ' . $nickname . ' to pick a color (r/g/b/y)');
+				->privmsg($source->getName(), $user->getNickname() . ': Waiting for ' . $nickname . ' to pick a color (r/g/b/y)');
 
 			return;
 		}
@@ -304,8 +317,15 @@ class Uno
 		if ($game->getNicknameForDeck($deck) != $user->getNickname())
 		{
 			Queue::fromContainer($container)
-				->privmsg($source->getName(), 'It is not your turn.');
+				->privmsg($source->getName(), $user->getNickname() . ': It is not your turn.');
 
+			return;
+		}
+
+		if (!$game->isDrawn())
+		{
+			Queue::fromContainer($container)
+				->privmsg($source->getName(), $user->getNickname() . ': You need to draw a card first.');
 			return;
 		}
 
@@ -320,7 +340,7 @@ class Uno
 		if (!$game || !$game->isStarted() || !$game->isParticipant($user))
 		{
 			Queue::fromContainer($container)
-				->privmsg($source->getName(), 'A game has not been started or you are no participant.');
+				->privmsg($source->getName(), $user->getNickname() . ': A game has not been started or you are no participant.');
 
 			return;
 		}
@@ -328,7 +348,7 @@ class Uno
 		if (($nickname = $game->waitingOnPlayerColor()))
 		{
 			Queue::fromContainer($container)
-				->privmsg($source->getName(), 'Waiting for ' . $nickname . ' to pick a color (r/g/b/y)');
+				->privmsg($source->getName(), $user->getNickname() . ': Waiting for ' . $nickname . ' to pick a color (r/g/b/y)');
 
 			return;
 		}
@@ -337,7 +357,7 @@ class Uno
 		if ($game->getNicknameForDeck($deck) != $user->getNickname())
 		{
 			Queue::fromContainer($container)
-				->privmsg($source->getName(), 'It is not your turn.');
+				->privmsg($source->getName(), $user->getNickname() . ': It is not your turn.');
 
 			return;
 		}
@@ -345,7 +365,7 @@ class Uno
 		if ($game->isDrawn())
 		{
 			Queue::fromContainer($container)
-				->privmsg($source->getName(), 'You cannot draw a card twice.');
+				->privmsg($source->getName(), $user->getNickname() . ': You cannot draw a card twice.');
 
 			return;
 		}
@@ -362,7 +382,7 @@ class Uno
 		if (!$game || !$game->isStarted() || !$game->isParticipant($user))
 		{
 			Queue::fromContainer($container)
-				->privmsg($source->getName(), 'A game has not been started or you are no participant.');
+				->privmsg($source->getName(), $user->getNickname() . ': A game has not been started or you are no participant.');
 
 			return;
 		}
@@ -401,7 +421,7 @@ class Uno
 		if (!$game || !$game->isStarted() || !$game->isParticipant($user))
 		{
 			Queue::fromContainer($container)
-				->privmsg($source->getName(), 'A game has not been started or you are no participant.');
+				->privmsg($source->getName(), $user->getNickname() . ': A game has not been started or you are no participant.');
 
 			return;
 		}
@@ -409,7 +429,7 @@ class Uno
 		if (($nickname = $game->waitingOnPlayerColor()))
 		{
 			Queue::fromContainer($container)
-				->privmsg($source->getName(), 'Waiting for ' . $nickname . ' to pick a color (r/g/b/y)');
+				->privmsg($source->getName(), $user->getNickname() . ': Waiting for ' . $nickname . ' to pick a color (r/g/b/y)');
 
 			return;
 		}
@@ -418,7 +438,7 @@ class Uno
 		if ($game->getNicknameForDeck($deck) != $user->getNickname())
 		{
 			Queue::fromContainer($container)
-				->privmsg($source->getName(), 'It is not your turn.');
+				->privmsg($source->getName(), $user->getNickname() . ': It is not your turn.');
 
 			return;
 		}
@@ -486,7 +506,7 @@ class Uno
 		if (!$game || !$game->isStarted() || !$game->isParticipant($user))
 		{
 			Queue::fromContainer($container)
-				->privmsg($source->getName(), 'A game has not been started or you are no participant.');
+				->privmsg($source->getName(), $user->getNickname() . ': A game has not been started or you are no participant.');
 
 			return;
 		}
@@ -494,7 +514,7 @@ class Uno
 		if (!$game->waitingOnPlayerColor())
 		{
 			Queue::fromContainer($container)
-				->privmsg($source->getName(), 'A color cannot be picked now.');
+				->privmsg($source->getName(), $user->getNickname() . ': A color cannot be picked now.');
 
 			return;
 		}
@@ -511,7 +531,7 @@ class Uno
 		if (!in_array($color, ['r', 'b', 'g', 'y']))
 		{
 			Queue::fromContainer($container)
-				->privmsg($source->getName(), 'That is not a valid color (r/g/b/y)');
+				->privmsg($source->getName(), $user->getNickname() . ': That is not a valid color (r/g/b/y)');
 
 			return;
 		}

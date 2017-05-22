@@ -209,6 +209,13 @@ class Uno
 
 			return;
 		}
+        if ($game->isStarted())
+        {
+            Queue::fromContainer($container)
+                ->privmsg($source->getName(), 'A game is already in progress in this channel.');
+
+            return;
+        }
 		$game->setStarted(true);
 		$game->getDeckForPreviousParticipant();
 		$game->setLastCard($game->pickRandomCard(1, true)[0]);

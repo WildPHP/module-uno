@@ -70,6 +70,8 @@ class Uno
 			->registerCommand('togglecolors', [$this, 'togglecolorsCommand'], null, 0, 0);
 		CommandHandler::fromContainer($container)
 			->registerCommand('validmoves', [$this, 'validmovesCommand'], null, 0, 0);
+        CommandHandler::fromContainer($container)
+            ->registerCommand('unorules', [$this, 'unorulesCommand'], null, 0, 0);
 
 		CommandHandler::fromContainer($container)
 			->alias('play', 'pl');
@@ -84,7 +86,7 @@ class Uno
 		CommandHandler::fromContainer($container)
 			->alias('validmoves', 'vm');
 		CommandHandler::fromContainer($container)
-			->alias('cards', 'lcr');
+			->alias('cards', 'lsc');
 
 		EventEmitter::fromContainer($container)
 			->on('uno.populated', [$this, 'notifyNewCards']);
@@ -272,15 +274,7 @@ class Uno
 
 		$game->addParticipant($user);
 		Queue::fromContainer($container)
-			->privmsg($source->getName(), $user->getNickname() . ': You have joined the UNO game. Please take a moment to read the basic rules you received in a private message.');
-
-		$prefix = Configuration::fromContainer($container)->get('prefix')->getValue();
-		Queue::fromContainer($container)
-			->notice($user->getNickname(), 'You will be assigned 10 cards when you join the game. The objective is to get rid of all your cards first. To play a card, use the ' . $prefix . 'play command (alias ' . $prefix . 'pl).');
-		Queue::fromContainer($container)
-			->notice($user->getNickname(), 'If you cannot play a valid card (check with ' . $prefix . 'validmoves (alias ' . $prefix . 'vm), you must draw a card (' . $prefix . 'draw/' . $prefix . 'dr)');
-		Queue::fromContainer($container)
-			->notice($user->getNickname(), 'If after drawing a card you still cannot play, pass your turn with ' . $prefix . 'pass/' . $prefix . 'pa. Special cards are: #r: Reverse, #s: Skip, #d: Draw Two, w: Wildcard, wd: Wild Draw Four.');
+			->privmsg($source->getName(), $user->getNickname() . ': You have joined the UNO game. Please take a moment to read the basic rules by entering the unorules command.');
 
 		$this->noticeCardsToUser($user->getNickname(), $game->getDeckForUser($user));
 	}
@@ -506,6 +500,19 @@ class Uno
 	{
 		unset($this->games[$source->getName()]);
 	}
+
+	public function unorulesCommand(Channel $source, User $user, $args, ComponentContainer $container)
+    {
+        $prefix = Configuration::fromContainer($container)->get('prefix')->getValue();
+        Queue::fromContainer($container)
+            ->notice($user->getNickname(), 'You will be assigned 10 cards when you join the game. The objective is to get rid of all your cards first. To play a card, use the ' . $prefix . 'play command (alias ' . $prefix . 'pl).');
+        Queue::fromContainer($container)
+            ->notice($user->getNickname(), 'A card can be played if either the color (first letter) or type (second letter) match.');
+        Queue::fromContainer($container)
+            ->notice($user->getNickname(), 'If you cannot play a valid card (check with ' . $prefix . 'validmoves (alias ' . $prefix . 'vm), you must draw a card (' . $prefix . 'draw/' . $prefix . 'dr)');
+        Queue::fromContainer($container)
+            ->notice($user->getNickname(), 'If after drawing a card you still cannot play, pass your turn with ' . $prefix . 'pass/' . $prefix . 'pa. Special cards are: #r: Reverse, #s: Skip, #d: Draw Two, w: Wildcard, wd: Wild Draw Four.');
+    }
 
 	public function colorCommand(Channel $source, User $user, $args, ComponentContainer $container)
 	{

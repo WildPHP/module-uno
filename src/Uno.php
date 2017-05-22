@@ -49,62 +49,62 @@ class Uno
 		$commandHelp = new CommandHelp();
 		$commandHelp->addPage('Initiates a new game of UNO. No arguments.');
 		CommandHandler::fromContainer($container)
-			->registerCommand('newgame', [$this, 'startGameCommand'], null, 0, 0, 'newgame');
+			->registerCommand('newgame', [$this, 'startGameCommand'], $commandHelp, 0, 0, 'newgame');
 
 		$commandHelp = new CommandHelp();
 		$commandHelp->addPage('Starts the initiated game of UNO. Use after all participants have joined. No arguments.');
 		CommandHandler::fromContainer($container)
-			->registerCommand('start', [$this, 'startCommand'], null, 0, 0, 'newgame');
+			->registerCommand('start', [$this, 'startCommand'], $commandHelp, 0, 0, 'newgame');
 
 		$commandHelp = new CommandHelp();
 		$commandHelp->addPage('Stops the running game of UNO.');
 		CommandHandler::fromContainer($container)
-			->registerCommand('stop', [$this, 'stopCommand'], null, 0, 0, 'newgame');
+			->registerCommand('stop', [$this, 'stopCommand'], $commandHelp, 0, 0, 'newgame');
 
 		$commandHelp = new CommandHelp();
 		$commandHelp->addPage('Enter as a participant in the running game of UNO.');
 		CommandHandler::fromContainer($container)
-			->registerCommand('enter', [$this, 'enterCommand'], null, 0, 0);
+			->registerCommand('enter', [$this, 'enterCommand'], $commandHelp, 0, 0);
 
 		$commandHelp = new CommandHelp();
 		$commandHelp->addPage('UNO: Pass your current turn.');
 		CommandHandler::fromContainer($container)
-			->registerCommand('pass', [$this, 'passCommand'], null, 0, 0);
+			->registerCommand('pass', [$this, 'passCommand'], $commandHelp, 0, 0);
 
 		$commandHelp = new CommandHelp();
 		$commandHelp->addPage('UNO: Play a card. Usage: play [card]');
 		CommandHandler::fromContainer($container)
-			->registerCommand('play', [$this, 'playCommand'], null, 1, 1);
+			->registerCommand('play', [$this, 'playCommand'], $commandHelp, 1, 1);
 
 		$commandHelp = new CommandHelp();
 		$commandHelp->addPage('UNO: Choose a color. Usage: color [color]');
 		CommandHandler::fromContainer($container)
-			->registerCommand('color', [$this, 'colorCommand'], null, 1, 1);
+			->registerCommand('color', [$this, 'colorCommand'], $commandHelp, 1, 1);
 
 		$commandHelp = new CommandHelp();
 		$commandHelp->addPage('UNO: Draw a card from the stack.');
 		CommandHandler::fromContainer($container)
-			->registerCommand('draw', [$this, 'drawCommand'], null, 0, 0);
+			->registerCommand('draw', [$this, 'drawCommand'], $commandHelp, 0, 0);
 
 		$commandHelp = new CommandHelp();
 		$commandHelp->addPage('UNO: Show your current cards.');
 		CommandHandler::fromContainer($container)
-			->registerCommand('cards', [$this, 'cardsCommand'], null, 0, 0);
+			->registerCommand('cards', [$this, 'cardsCommand'], $commandHelp, 0, 0);
 
 		$commandHelp = new CommandHelp();
 		$commandHelp->addPage('UNO: Toggle the displaying of colors in your private messages for the current session.');
 		CommandHandler::fromContainer($container)
-			->registerCommand('togglecolors', [$this, 'togglecolorsCommand'], null, 0, 0);
+			->registerCommand('togglecolors', [$this, 'togglecolorsCommand'], $commandHelp, 0, 0);
 
 		$commandHelp = new CommandHelp();
 		$commandHelp->addPage('UNO: Show all available valid moves.');
 		CommandHandler::fromContainer($container)
-			->registerCommand('validmoves', [$this, 'validmovesCommand'], null, 0, 0);
+			->registerCommand('validmoves', [$this, 'validmovesCommand'], $commandHelp, 0, 0);
 
 		$commandHelp = new CommandHelp();
 		$commandHelp->addPage('UNO: List basic game rules.');
 		CommandHandler::fromContainer($container)
-			->registerCommand('unorules', [$this, 'unorulesCommand'], null, 0, 0);
+			->registerCommand('unorules', [$this, 'unorulesCommand'], $commandHelp, 0, 0);
 
 		CommandHandler::fromContainer($container)
 			->alias('play', 'pl');

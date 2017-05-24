@@ -1,11 +1,11 @@
-# LinkSniffer Module
+# Uno Module
 [![Build Status](https://scrutinizer-ci.com/g/WildPHP/module-uno/badges/build.png?b=master)](https://scrutinizer-ci.com/g/WildPHP/module-uno/build-status/master)
 [![Scrutinizer Code Quality](https://scrutinizer-ci.com/g/WildPHP/module-uno/badges/quality-score.png?b=master)](https://scrutinizer-ci.com/g/WildPHP/module-uno/?branch=master)
 [![Latest Stable Version](https://poser.pugx.org/wildphp/module-uno/v/stable)](https://packagist.org/packages/wildphp/module-uno)
 [![Latest Unstable Version](https://poser.pugx.org/wildphp/module-uno/v/unstable)](https://packagist.org/packages/wildphp/module-uno)
 [![Total Downloads](https://poser.pugx.org/wildphp/module-uno/downloads)](https://packagist.org/packages/wildphp/module-uno)
 
-This module shows information about a link when it is posted in a channel.
+Play UNO in IRC.
 
 ## System Requirements
 If your setup can run the main bot, it can run this module as well.

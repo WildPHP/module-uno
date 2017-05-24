@@ -21,16 +21,14 @@ namespace WildPHP\Modules\Uno;
 
 use Flintstone\Config;
 use WildPHP\Core\Channels\Channel;
-
 use WildPHP\Core\Commands\CommandHandler;
+use WildPHP\Core\Commands\CommandHelp;
+use WildPHP\Core\ComponentContainer;
 use WildPHP\Core\Configuration\Configuration;
-
 use WildPHP\Core\Connection\Queue;
 use WildPHP\Core\Connection\TextFormatter;
 use WildPHP\Core\ContainerTrait;
-use WildPHP\Core\ComponentContainer;
 use WildPHP\Core\EventEmitter;
-
 use WildPHP\Core\Users\User;
 
 class Uno
@@ -49,28 +47,65 @@ class Uno
 	 */
 	public function __construct(ComponentContainer $container)
 	{
+		$commandHelp = new CommandHelp();
+		$commandHelp->addPage('Initiates a new game of UNO. No arguments.');
 		CommandHandler::fromContainer($container)
-			->registerCommand('newgame', [$this, 'startGameCommand'], null, 0, 0, 'newgame');
+			->registerCommand('newgame', [$this, 'startGameCommand'], $commandHelp, 0, 0, 'newgame');
+
+		$commandHelp = new CommandHelp();
+		$commandHelp->addPage('Starts the initiated game of UNO. Use after all participants have joined. No arguments.');
 		CommandHandler::fromContainer($container)
-			->registerCommand('start', [$this, 'startCommand'], null, 0, 0, 'newgame');
+			->registerCommand('start', [$this, 'startCommand'], $commandHelp, 0, 0, 'newgame');
+
+		$commandHelp = new CommandHelp();
+		$commandHelp->addPage('Stops the running game of UNO.');
 		CommandHandler::fromContainer($container)
-			->registerCommand('stop', [$this, 'stopCommand'], null, 0, 0, 'newgame');
+			->registerCommand('stop', [$this, 'stopCommand'], $commandHelp, 0, 0, 'newgame');
+
+		$commandHelp = new CommandHelp();
+		$commandHelp->addPage('Enter as a participant in the running game of UNO.');
 		CommandHandler::fromContainer($container)
-			->registerCommand('enter', [$this, 'enterCommand'], null, 0, 0);
+			->registerCommand('enter', [$this, 'enterCommand'], $commandHelp, 0, 0);
+
+		$commandHelp = new CommandHelp();
+		$commandHelp->addPage('UNO: Pass your current turn.');
 		CommandHandler::fromContainer($container)
-			->registerCommand('pass', [$this, 'passCommand'], null, 0, 0);
+			->registerCommand('pass', [$this, 'passCommand'], $commandHelp, 0, 0);
+
+		$commandHelp = new CommandHelp();
+		$commandHelp->addPage('UNO: Play a card. Usage: play [card]');
 		CommandHandler::fromContainer($container)
-			->registerCommand('play', [$this, 'playCommand'], null, 1, 1);
+			->registerCommand('play', [$this, 'playCommand'], $commandHelp, 1, 1);
+
+		$commandHelp = new CommandHelp();
+		$commandHelp->addPage('UNO: Choose a color. Usage: color [color]');
 		CommandHandler::fromContainer($container)
-			->registerCommand('color', [$this, 'colorCommand'], null, 1, 1);
+			->registerCommand('color', [$this, 'colorCommand'], $commandHelp, 1, 1);
+
+		$commandHelp = new CommandHelp();
+		$commandHelp->addPage('UNO: Draw a card from the stack.');
 		CommandHandler::fromContainer($container)
-			->registerCommand('draw', [$this, 'drawCommand'], null, 0, 0);
+			->registerCommand('draw', [$this, 'drawCommand'], $commandHelp, 0, 0);
+
+		$commandHelp = new CommandHelp();
+		$commandHelp->addPage('UNO: Show your current cards.');
 		CommandHandler::fromContainer($container)
-			->registerCommand('cards', [$this, 'cardsCommand'], null, 0, 0);
+			->registerCommand('cards', [$this, 'cardsCommand'], $commandHelp, 0, 0);
+
+		$commandHelp = new CommandHelp();
+		$commandHelp->addPage('UNO: Toggle the displaying of colors in your private messages for the current session.');
 		CommandHandler::fromContainer($container)
-			->registerCommand('togglecolors', [$this, 'togglecolorsCommand'], null, 0, 0);
+			->registerCommand('togglecolors', [$this, 'togglecolorsCommand'], $commandHelp, 0, 0);
+
+		$commandHelp = new CommandHelp();
+		$commandHelp->addPage('UNO: Show all available valid moves.');
 		CommandHandler::fromContainer($container)
-			->registerCommand('validmoves', [$this, 'validmovesCommand'], null, 0, 0);
+			->registerCommand('validmoves', [$this, 'validmovesCommand'], $commandHelp, 0, 0);
+
+		$commandHelp = new CommandHelp();
+		$commandHelp->addPage('UNO: List basic game rules.');
+		CommandHandler::fromContainer($container)
+			->registerCommand('unorules', [$this, 'unorulesCommand'], $commandHelp, 0, 0);
 
 		CommandHandler::fromContainer($container)
 			->alias('play', 'pl');
@@ -85,7 +120,7 @@ class Uno
 		CommandHandler::fromContainer($container)
 			->alias('validmoves', 'vm');
 		CommandHandler::fromContainer($container)
-			->alias('cards', 'lcr');
+			->alias('cards', 'lsc');
 
 		EventEmitter::fromContainer($container)
 			->on('uno.populated', [$this, 'notifyNewCards']);
@@ -93,6 +128,11 @@ class Uno
 		$this->setContainer($container);
 	}
 
+	/**
+	 * @param string $card
+	 *
+	 * @return string
+	 */
 	public function formatCard(string $card): string
 	{
 		$colormap = [
@@ -113,6 +153,11 @@ class Uno
 		return TextFormatter::bold(TextFormatter::color($card, $colormap[$color]));
 	}
 
+	/**
+	 * @param Deck $deck
+	 * @param Game $game
+	 * @param array $cards
+	 */
 	public function notifyNewCards(Deck $deck, Game $game, array $cards)
 	{
 		$nickname = $game->getNicknameForDeck($deck);
@@ -130,6 +175,10 @@ class Uno
 			->notice($nickname, 'These cards were added to your deck: ' . $cards);
 	}
 
+	/**
+	 * @param string $nickname
+	 * @param Deck $deck
+	 */
 	public function noticeCardsToUser(string $nickname, Deck $deck)
 	{
 		$cards = $deck->getCards();
@@ -156,6 +205,10 @@ class Uno
 			->notice($nickname, 'You have no cards. (wat)');
 	}
 
+	/**
+	 * @param Game $game
+	 * @param Channel $source
+	 */
 	public function announceNextTurn(Game $game, Channel $source)
 	{
 		$game->setDrawn(false);
@@ -170,7 +223,13 @@ class Uno
 		$this->noticeCardsToUser($nickname, $nextDeck);
 	}
 
-	public function startGameCommand(Channel $source, User $user, $args, ComponentContainer $container)
+	/**
+	 * @param Channel $source
+	 * @param User $user
+	 * @param array $args
+	 * @param ComponentContainer $container
+	 */
+	public function startGameCommand(Channel $source, User $user, array $args, ComponentContainer $container)
 	{
 		$game = $this->findGameForChannel($source);
 		if ($game && $game->isStarted())
@@ -200,7 +259,13 @@ class Uno
 		$this->games[$source->getName()] = $game;
 	}
 
-	public function startCommand(Channel $source, User $user, $args, ComponentContainer $container)
+	/**
+	 * @param Channel $source
+	 * @param User $user
+	 * @param array $args
+	 * @param ComponentContainer $container
+	 */
+	public function startCommand(Channel $source, User $user, array $args, ComponentContainer $container)
 	{
 		$game = $this->findGameForChannel($source);
 		if (!$game)
@@ -225,7 +290,13 @@ class Uno
 		$this->announceNextTurn($game, $source);
 	}
 
-	public function stopCommand(Channel $source, User $user, $args, ComponentContainer $container)
+	/**
+	 * @param Channel $source
+	 * @param User $user
+	 * @param array $args
+	 * @param ComponentContainer $container
+	 */
+	public function stopCommand(Channel $source, User $user, array $args, ComponentContainer $container)
 	{
 		$game = $this->findGameForChannel($source);
 		if (!$game)
@@ -241,7 +312,13 @@ class Uno
 			->privmsg($source->getName(), 'Game stopped.');
 	}
 
-	public function togglecolorsCommand(Channel $source, User $user, $args, ComponentContainer $container)
+	/**
+	 * @param Channel $source
+	 * @param User $user
+	 * @param array $args
+	 * @param ComponentContainer $container
+	 */
+	public function togglecolorsCommand(Channel $source, User $user, array $args, ComponentContainer $container)
 	{
 		$game = $this->findGameForChannel($source);
 		if (!$game || !$game->isParticipant($user))
@@ -260,33 +337,39 @@ class Uno
 				'Your color preferences have been updated. Colors in personal messages are now ' . ($allowed ? 'enabled' : 'disabled') . ' for UNO.');
 	}
 
-	public function enterCommand(Channel $source, User $user, $args, ComponentContainer $container)
+	/**
+	 * @param Channel $source
+	 * @param User $user
+	 * @param array $args
+	 * @param ComponentContainer $container
+	 */
+	public function enterCommand(Channel $source, User $user, array $args, ComponentContainer $container)
 	{
 		$game = $this->findGameForChannel($source);
 		if (!$game || $game->isStarted() || $game->isParticipant($user))
 		{
 			Queue::fromContainer($container)
-				->privmsg($source->getName(), $user->getNickname() . ': A game has not been started, is already running, or you are already a participant.');
+				->privmsg($source->getName(),
+					$user->getNickname() . ': A game has not been started, is already running, or you are already a participant.');
 
 			return;
 		}
 
 		$game->addParticipant($user);
 		Queue::fromContainer($container)
-			->privmsg($source->getName(), $user->getNickname() . ': You have joined the UNO game. Please take a moment to read the basic rules you received in a private message.');
-
-		$prefix = Configuration::fromContainer($container)->get('prefix')->getValue();
-		Queue::fromContainer($container)
-			->notice($user->getNickname(), 'You will be assigned 10 cards when you join the game. The objective is to get rid of all your cards first. To play a card, use the ' . $prefix . 'play command (alias ' . $prefix . 'pl).');
-		Queue::fromContainer($container)
-			->notice($user->getNickname(), 'If you cannot play a valid card (check with ' . $prefix . 'validmoves (alias ' . $prefix . 'vm), you must draw a card (' . $prefix . 'draw/' . $prefix . 'dr)');
-		Queue::fromContainer($container)
-			->notice($user->getNickname(), 'If after drawing a card you still cannot play, pass your turn with ' . $prefix . 'pass/' . $prefix . 'pa. Special cards are: #r: Reverse, #s: Skip, #d: Draw Two, w: Wildcard, wd: Wild Draw Four.');
+			->privmsg($source->getName(), $user->getNickname() .
+				': You have joined the UNO game. Please take a moment to read the basic rules by entering the unorules command.');
 
 		$this->noticeCardsToUser($user->getNickname(), $game->getDeckForUser($user));
 	}
 
-	public function cardsCommand(Channel $source, User $user, $args, ComponentContainer $container)
+	/**
+	 * @param Channel $source
+	 * @param User $user
+	 * @param array $args
+	 * @param ComponentContainer $container
+	 */
+	public function cardsCommand(Channel $source, User $user, array $args, ComponentContainer $container)
 	{
 		$game = $this->findGameForChannel($source);
 		if (!$game || !$game->isStarted() || !$game->isParticipant($user))
@@ -301,8 +384,13 @@ class Uno
 		$this->noticeCardsToUser($user->getNickname(), $deck);
 	}
 
-
-	public function passCommand(Channel $source, User $user, $args, ComponentContainer $container)
+	/**
+	 * @param Channel $source
+	 * @param User $user
+	 * @param array $args
+	 * @param ComponentContainer $container
+	 */
+	public function passCommand(Channel $source, User $user, array $args, ComponentContainer $container)
 	{
 		$game = $this->findGameForChannel($source);
 		if (!$game || !$game->isStarted() || !$game->isParticipant($user))
@@ -334,6 +422,7 @@ class Uno
 		{
 			Queue::fromContainer($container)
 				->privmsg($source->getName(), $user->getNickname() . ': You need to draw a card first.');
+
 			return;
 		}
 
@@ -342,7 +431,13 @@ class Uno
 		$this->announceNextTurn($game, $source);
 	}
 
-	public function drawCommand(Channel $source, User $user, $args, ComponentContainer $container)
+	/**
+	 * @param Channel $source
+	 * @param User $user
+	 * @param array $args
+	 * @param ComponentContainer $container
+	 */
+	public function drawCommand(Channel $source, User $user, array $args, ComponentContainer $container)
 	{
 		$game = $this->findGameForChannel($source);
 		if (!$game || !$game->isStarted() || !$game->isParticipant($user))
@@ -384,7 +479,13 @@ class Uno
 		$game->setDrawn(true);
 	}
 
-	public function validmovesCommand(Channel $source, User $user, $args, ComponentContainer $container)
+	/**
+	 * @param Channel $source
+	 * @param User $user
+	 * @param array $args
+	 * @param ComponentContainer $container
+	 */
+	public function validmovesCommand(Channel $source, User $user, array $args, ComponentContainer $container)
 	{
 		$game = $this->findGameForChannel($source);
 		if (!$game || !$game->isStarted() || !$game->isParticipant($user))
@@ -423,7 +524,13 @@ class Uno
 			->notice($user->getNickname(), 'Valid moves against ' . $currentCard . ' are: ' . implode(', ', $validCards));
 	}
 
-	public function playCommand(Channel $source, User $user, $args, ComponentContainer $container)
+	/**
+	 * @param Channel $source
+	 * @param User $user
+	 * @param array $args
+	 * @param ComponentContainer $container
+	 */
+	public function playCommand(Channel $source, User $user, array $args, ComponentContainer $container)
 	{
 		$game = $this->findGameForChannel($source);
 		if (!$game || !$game->isStarted() || !$game->isParticipant($user))
@@ -503,12 +610,47 @@ class Uno
 		$this->announceNextTurn($game, $source);
 	}
 
+	/**
+	 * @param Channel $source
+	 */
 	public function stopGame(Channel $source)
 	{
 		unset($this->games[$source->getName()]);
 	}
 
-	public function colorCommand(Channel $source, User $user, $args, ComponentContainer $container)
+	/**
+	 * @param Channel $source
+	 * @param User $user
+	 * @param array $args
+	 * @param ComponentContainer $container
+	 */
+	public function unorulesCommand(Channel $source, User $user, array $args, ComponentContainer $container)
+	{
+		$prefix = Configuration::fromContainer($container)
+			->get('prefix')
+			->getValue();
+		Queue::fromContainer($container)
+			->notice($user->getNickname(),
+				'You will be assigned 10 cards when you join the game. The objective is to get rid of all your cards first. To play a card, use the ' .
+				$prefix . 'play command (alias ' . $prefix . 'pl).');
+		Queue::fromContainer($container)
+			->notice($user->getNickname(), 'A card can be played if either the color (first letter) or type (second letter) match.');
+		Queue::fromContainer($container)
+			->notice($user->getNickname(),
+				'If you cannot play a valid card (check with ' . $prefix . 'validmoves (alias ' . $prefix . 'vm), you must draw a card (' . $prefix .
+				'draw/' . $prefix . 'dr)');
+		Queue::fromContainer($container)
+			->notice($user->getNickname(), 'If after drawing a card you still cannot play, pass your turn with ' . $prefix . 'pass/' . $prefix .
+				'pa. Special cards are: #r: Reverse, #s: Skip, #d: Draw Two, w: Wildcard, wd: Wild Draw Four.');
+	}
+
+	/**
+	 * @param Channel $source
+	 * @param User $user
+	 * @param array $args
+	 * @param ComponentContainer $container
+	 */
+	public function colorCommand(Channel $source, User $user, array $args, ComponentContainer $container)
 	{
 		$game = $this->findGameForChannel($source);
 		if (!$game || !$game->isStarted() || !$game->isParticipant($user))
@@ -550,6 +692,11 @@ class Uno
 		$this->announceNextTurn($game, $source);
 	}
 
+	/**
+	 * @param Channel $channel
+	 *
+	 * @return bool|Game
+	 */
 	protected function findGameForChannel(Channel $channel)
 	{
 		$name = $channel->getName();

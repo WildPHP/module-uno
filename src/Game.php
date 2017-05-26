@@ -17,16 +17,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/**
- * Created by PhpStorm.
- * User: rick2
- * Date: 20-5-2017
- * Time: 20:26
- */
-
 namespace WildPHP\Modules\Uno;
 
+use Collections\Collection;
 use WildPHP\Core\ComponentContainer;
+use WildPHP\Core\Connection\IRCMessages\PART;
 use WildPHP\Core\EventEmitter;
 use WildPHP\Core\Logger\Logger;
 use WildPHP\Core\Users\User;
@@ -39,169 +34,184 @@ class Game
 		'r0', 'r1', 'r1', 'r2', 'r2', 'r3', 'r3', 'r4', 'r4', 'r5', 'r5', 'r6', 'r6', 'r7', 'r7', 'r8', 'r8', 'r9', 'r9', 'rs', 'rs', 'rr', 'rr', 'rd', 'rd', // red stack
 		'y0', 'y1', 'y1', 'y2', 'y2', 'y3', 'y3', 'y4', 'y4', 'y5', 'y5', 'y6', 'y6', 'y7', 'y7', 'y8', 'y8', 'y9', 'y9', 'ys', 'ys', 'yr', 'yr', 'yd', 'yd', // Yellow stack
 		'g0', 'g1', 'g1', 'g2', 'g2', 'g3', 'g3', 'g4', 'g4', 'g5', 'g5', 'g6', 'g6', 'g7', 'g7', 'g8', 'g8', 'g9', 'g9', 'gs', 'gs', 'gr', 'gr', 'gd', 'gd', // Green stack
-		'w', 'w', 'wd', 'wd', 'w', 'w', 'wd', 'wd' // Wild cards
+		'w', 'w', 'wd', 'wd', 'w', 'w', 'wd', 'wd', // Wild cards
+		'g', 'r', 'y', 'b' // Cards used when a color is chosen.
 	];
 	//@formatter:on
 
-	protected $availableCards = [];
+	/**
+	 * @var Deck
+	 */
+	protected $availableCards;
 
+	/**
+	 * @var bool
+	 */
 	protected $started = false;
 
-	protected $channel = '';
+	/**
+	 * @var ComponentContainer
+	 */
 	protected $container = null;
 
-	protected $participants = [];
+	/**
+	 * @var Participants
+	 */
+	protected $participants;
+
+	/**
+	 * @var bool
+	 */
 	protected $isReversed = false;
 
-	protected $lastCard = '';
+	/**
+	 * @var Card
+	 */
+	protected $lastCard;
 
-	protected $waitingOn = null;
-	protected $waitingReason = '';
+	/**
+	 * @var Participant
+	 */
+	protected $currentPlayer;
 
-	protected $drawn = false;
+	/**
+	 * @var bool
+	 */
+	protected $currentPlayerHasDrawn = false;
 
+	/**
+	 * @var false|Participant
+	 */
+	protected $playerMustChooseColor = false;
+
+	/**
+	 * Game constructor.
+	 *
+	 * @param ComponentContainer $container
+	 */
 	public function __construct(ComponentContainer $container)
 	{
-		$this->availableCards = self::$validCards;
 		$this->setContainer($container);
+
+		$this->participants = new Participants();
+		$this->availableCards = new Deck();
+
+		foreach (self::$validCards as $validCard)
+		{
+			$color = $validCard[0];
+			$type = $validCard[1] ?? '';
+
+			$cardObject = new Card($color, $type);
+			$this->availableCards->add($cardObject);
+		}
 	}
 
-	public function addParticipant(User $user)
+	/**
+	 * @param User $user
+	 *
+	 * @return Participant
+	 */
+	public function createParticipant(User $user): Participant
 	{
-		if ($this->isParticipant($user))
-			return;
+		if ($this->isUserParticipant($user))
+			return $this->findParticipantForUser($user);
 
 		$deck = new Deck();
-		$this->populateDeck($deck);
-		$this->participants[$user->getNickname()] = $deck;
+		$participantObject = new Participant($user, $deck);
+		$this->populateDeckForParticipant($participantObject,10);
+		$this->participants->add($participantObject);
+		return $participantObject;
 	}
 
-	public function isParticipant(User $user)
+	/**
+	 * @param User $user
+	 *
+	 * @return Participant|false
+	 */
+	public function findParticipantForUser(User $user)
 	{
-		return array_key_exists($user->getNickname(), $this->participants);
+		return $this->participants->find(function (Participant $participant) use ($user)
+		{
+			return $participant->getUserObject() === $user;
+		});
 	}
 
-	// !!! HACK
-	public function setColor(string $color)
+	/**
+	 * @param User $user
+	 *
+	 * @return bool
+	 */
+	public function isUserParticipant(User $user): bool
 	{
-		$this->lastCard = $color;
-		$this->waitingOn = null;
-		$this->waitingReason = '';
+		return !empty($this->findParticipantForUser($user));
 	}
 
-	public function playCard(User $user, string $card)
+	/**
+	 * @param string $card
+	 *
+	 * @return Card|false
+	 */
+	public function findAvailableCard(string $card)
 	{
-		if (!$this->isStarted() && !$this->isParticipant($user) || $this->waitingOn)
-			return false;
+		return $this->availableCards->find(function (Card $availableCard) use ($card)
+		{
+			return $availableCard->toString() == $card;
+		});
+	}
 
-		$deck = $this->getDeckForUser($user);
-
-		if (!$deck->containsCard($card) || !$this->cardIsCompatible($this->lastCard, $card))
-			return false;
-
-		// Consider it played since we passed all validation.
+	/**
+	 * @param Deck $deck
+	 * @param string|Card $card
+	 * @param string $message
+	 *
+	 * @return bool
+	 */
+	public function playCard(Deck $deck, Card $card, string &$message): bool
+	{
+		$currentParticipant = $this->getCurrentPlayer();
+		$nextParticipant = $this->getNextPlayer();
 		$this->lastCard = $card;
 		$deck->removeCard($card);
+		$color = $card->getColor();
+		$type = $card->getType();
 
-		$color = $card[0];
-		$type = $card[1] ?? '';
+		if ($color == CardTypes::WILD)
+			$this->setPlayerMustChooseColor($currentParticipant);
 
-		$message = '';
-		if ($color == 'w')
-			$this->playerMustColor($user->getNickname());
+		// When a color was chosen, don't bother to process anything else.
+		if (empty($type))
+			return true;
 
 		switch ($type)
 		{
-			case 'r':
+			case CardTypes::REVERSE:
 				if (count($this->participants) > 2)
-				{
-					$this->reverse();
 					$message = 'The order of players has been reversed';
-				}
 				else
 				{
-					$nextPlayerDeck = $this->getDeckForNextParticipant();
-					$nickname = $this->getNicknameForDeck($nextPlayerDeck);
-					$message = $nickname . ' skipped a turn (two-player game)';
+					$this->advance();
+					$message = $nextParticipant->getUserObject()
+							->getNickname() . ' skipped a turn (two-player game)';
 				}
 
+				$this->reverse();
 				break;
 
-			case 'd':
-				$amount = $color == 'w' ? 4 : 2;
-				$nextPlayerDeck = $this->getDeckForNextParticipant();
-				$this->populateDeck($nextPlayerDeck, $amount);
-				$nickname = $this->getNicknameForDeck($nextPlayerDeck);
-				$message = $nickname . ' drew ' . $amount . ' cards and skipped a turn';
+			case CardTypes::DRAW:
+				$amount = $color == CardTypes::WILD ? 4 : 2;
+
+				$cards = $this->populateDeckForParticipant($nextParticipant, $amount);
+				$message = $nextParticipant->getUserObject()->getNickname() . ' drew ' . $amount . ' cards and skipped a turn';
+				EventEmitter::fromContainer($this->getContainer())->emit('uno.deck.populate', [$nextParticipant, $cards]);
+				$this->advance();
 				break;
 
 			case 's':
-				$nextPlayerDeck = $this->getDeckForNextParticipant();
-				$nickname = $this->getNicknameForDeck($nextPlayerDeck);
-				$message = $nickname . ' skipped a turn';
+				$this->advance();
+				$message = $nextParticipant->getUserObject()->getNickname() . ' skipped a turn';
 				break;
 		}
-		return $message;
-	}
-
-	public function getReadableCardFormat(string $card)
-	{
-		$color = $card[0];
-		$type = $card[1] ?? '';
-
-		if ($color == 'w' && $type == 'd')
-			return 'Wild Draw Four';
-
-		$color = CardTypes::COLORS[$color];
-
-		if (!empty($type) && !is_numeric($type))
-			$type = CardTypes::TYPES[$type];
-
-		return trim($color . ' ' . $type);
-	}
-
-	public function getDeckForPreviousParticipant()
-	{
-		if (!$this->isReversed)
-		{
-			$result = prev($this->participants);
-			if (!$result)
-				end($this->participants);
-		}
-		else
-		{
-			$result = next($this->participants);
-			if (!$result)
-				reset($this->participants);
-		}
-		return $this->getCurrentParticipant();
-	}
-
-	public function getDeckForNextParticipant()
-	{
-		if (!$this->isReversed)
-		{
-			$result = next($this->participants);
-			if (!$result)
-				reset($this->participants);
-		}
-		else
-		{
-			$result = prev($this->participants);
-			if (!$result)
-				end($this->participants);
-		}
-		return $this->getCurrentParticipant();
-	}
-
-	public function getCurrentParticipant()
-	{
-		return current($this->participants);
-	}
-
-	public function getNicknameForDeck(Deck $deck)
-	{
-		return array_search($deck, $this->participants);
+		return true;
 	}
 
 	public function reverse()
@@ -210,68 +220,54 @@ class Game
 	}
 
 	/**
-	 * @param User $user
+	 * @param int $amount
+	 * @param bool $excludeWild
 	 *
-	 * @return Deck|null
+	 * @return Card[]
 	 */
-	public function getDeckForUser(User $user)
+	public function drawRandomCard($amount = 1, $excludeWild = false): array
 	{
-		if (!$this->isParticipant($user))
-			return null;
+		$available = $this->availableCards->toArray();
+		if ($amount > count($available))
+			$amount = count($available);
 
-		return $this->participants[$user->getNickname()];
-	}
-
-
-	public function pickRandomCard($amount = 1, $excludeWild = false): array
-	{
-		$cards = [];
-		if ($amount > count($this->availableCards))
-			$amount = count($this->availableCards);
-
-		$available = $this->availableCards;
-		var_dump($available);
-
-		if ($excludeWild)
-			$available = array_filter($available, function ($card)
-			{
-				return $card[0] != 'w';
-			});
-
-		$keys = array_rand($available, $amount);
-		if (!is_array($keys))
-			$keys = [$keys];
-
-		foreach ($keys as $key)
+		$available = array_filter($available, function (Card $card) use ($excludeWild)
 		{
-			$cards[] = $this->availableCards[$key];
-			unset($this->availableCards[$key]);
+			return ($excludeWild && $card->getColor() != 'w') || !in_array($card->toString(), ['r', 'g', 'b', 'y']);
+		});
+
+		$cardKeys = array_rand($available, $amount);
+
+		if (!is_array($cardKeys))
+			$cardKeys = [$cardKeys];
+
+		$cards = [];
+		foreach ($cardKeys as $cardKey)
+		{
+			$card = $available[$cardKey];
+			$this->availableCards->removeCard($card);
+			$cards[] = $card;
 		}
 		Logger::fromContainer($this->getContainer())->debug('Picked cards', ['cards' => $cards]);
 		return $cards;
 	}
 
-	public function userHasLegalMoves(User $user)
+	/**
+	 * @param Participant $participant
+	 *
+	 * @return bool
+	 */
+	public function participantHasLegalMoves(Participant $participant)
 	{
-		$deck = $this->getDeckForUser($user);
-
-		if ($deck == null)
-			return false;
-
-		$hasLegalMoves = false;
-		foreach ($deck->getCards() as $card)
-		{
-			if (!$this->cardIsCompatible($this->lastCard, $card))
-				continue;
-
-			$hasLegalMoves = true;
-			break;
-		}
-
-		return $hasLegalMoves;
+		return !empty($this->deckGetValidCards($participant->getDeck()));
 	}
 
-	public function deckGetValidCards(Deck $deck, string $card = '')
+	/**
+	 * @param Deck $deck
+	 *
+	 * @return array
+	 */
+	public function deckGetValidCards(Deck $deck): array
 	{
 		if (empty($card))
 			$card = $this->lastCard;
@@ -280,9 +276,10 @@ class Game
 			return [];
 
 		$cards = [];
-		foreach ($deck->getCards() as $deckCard)
+		/** @var Card $deckCard */
+		foreach ($deck->toArray() as $deckCard)
 		{
-			if (!$this->cardIsCompatible($card, $deckCard))
+			if (!$deckCard->compatible($this->getLastCard()))
 				continue;
 
 			$cards[] = $deckCard;
@@ -290,31 +287,18 @@ class Game
 		return $cards;
 	}
 
-	public function populateDeck(Deck $deck, int $amount = 10)
+	/**
+	 * @param Participant $participant
+	 * @param int $amount
+	 *
+	 * @return mixed
+	 */
+	public function populateDeckForParticipant(Participant $participant, int $amount = 10)
 	{
-		$cards = $this->pickRandomCard($amount);
-		$deck->addCards($cards);
-		EventEmitter::fromContainer($this->getContainer())->emit('uno.populated', [$deck, $this, $cards]);
+		$deck = $participant->getDeck();
+		$cards = $this->drawRandomCard($amount);
+		$deck->addRange($cards);
 		return $cards;
-	}
-
-	public function cardIsCompatible(string $card1, string $card2)
-	{
-		$card1 = strtolower($card1);
-		$card2 = strtolower($card2);
-		if ($card1 == $card2)
-			return true;
-
-		$color1 = $card1[0];
-		$color2 = $card2[0];
-
-		if ($color1 == 'w' || $color2 == 'w' || $color1 == $color2)
-			return true;
-
-		$number1 = $card1[1];
-		$number2 = $card2[1];
-
-		return $number1 == $number2;
 	}
 
 	/**
@@ -336,6 +320,22 @@ class Game
 	/**
 	 * @return bool
 	 */
+	public function isReversed(): bool
+	{
+		return $this->isReversed;
+	}
+
+	/**
+	 * @param bool $isReversed
+	 */
+	public function setIsReversed(bool $isReversed)
+	{
+		$this->isReversed = $isReversed;
+	}
+
+	/**
+	 * @return bool
+	 */
 	public function isStarted(): bool
 	{
 		return $this->started;
@@ -349,40 +349,155 @@ class Game
 		$this->started = $started;
 	}
 
-	public function getLastCard()
+	/**
+	 * @return Card
+	 */
+	public function getLastCard(): Card
 	{
 		return $this->lastCard;
 	}
 
-	public function setLastCard(string $card)
+	/**
+	 * @param Card $lastCard
+	 */
+	public function setLastCard(Card $lastCard)
 	{
-		$this->lastCard = $card;
+		$this->lastCard = $lastCard;
 	}
 
-	protected function playerMustColor(string $nickname)
+	/**
+	 * @return Participant
+	 */
+	public function getCurrentPlayer(): Participant
 	{
-		$this->waitingReason = 'color';
-		$this->waitingOn = $nickname;
+		return current($this->getParticipants()->toArray());
 	}
 
-	public function waitingOnPlayerColor()
+	/**
+	 * @return Participant
+	 */
+	public function getNextPlayer(): Participant
 	{
-		return $this->waitingReason == 'color' ? $this->waitingOn : '';
+		$participants = $this->getParticipants()->toArray();
+
+		if (!$this->isReversed())
+		{
+			$result = next($participants);
+			if (!$result)
+				$result = reset($participants);
+		}
+		else
+		{
+			$result = prev($participants);
+			if (!$result)
+				$result = end($participants);
+		}
+		return $result;
+	}
+
+	/**
+	 * @return Participant
+	 */
+	public function getPreviousPlayer(): Participant
+	{
+		$participants = $this->getParticipants()->toArray();
+
+		if ($this->isReversed())
+		{
+			$result = next($participants);
+			if (!$result)
+				$result = reset($participants);
+		}
+		else
+		{
+			$result = prev($participants);
+			if (!$result)
+				$result = end($participants);
+		}
+		return $result;
+	}
+
+	/**
+	 * @return Participant
+	 */
+	public function advance(): Participant
+	{
+		$participants = &$this->getParticipants()->toArray();
+
+		if (!$this->isReversed())
+		{
+			$result = next($participants);
+			if (!$result)
+				$result = reset($participants);
+		}
+		else
+		{
+			$result = prev($participants);
+			if (!$result)
+				$result = end($participants);
+		}
+		return $result;
+	}
+
+	/**
+	 * @return Participant
+	 */
+	public function rewind(): Participant
+	{
+		$participants = &$this->getParticipants()->toArray();
+
+		if ($this->isReversed())
+		{
+			$result = next($participants);
+			if (!$result)
+				$result = reset($participants);
+		}
+		else
+		{
+			$result = prev($participants);
+			if (!$result)
+				$result = end($participants);
+		}
+		return $result;
 	}
 
 	/**
 	 * @return bool
 	 */
-	public function isDrawn(): bool
+	public function currentPlayerHasDrawn(): bool
 	{
-		return $this->drawn;
+		return $this->currentPlayerHasDrawn;
 	}
 
 	/**
-	 * @param bool $drawn
+	 * @param bool $currentPlayerHasDrawn
 	 */
-	public function setDrawn(bool $drawn)
+	public function setCurrentPlayerHasDrawn(bool $currentPlayerHasDrawn)
 	{
-		$this->drawn = $drawn;
+		$this->currentPlayerHasDrawn = $currentPlayerHasDrawn;
+	}
+
+	/**
+	 * @return bool|Participant
+	 */
+	public function playerMustChooseColor()
+	{
+		return $this->playerMustChooseColor;
+	}
+
+	/**
+	 * @param Participant|false $playerMustChooseColor
+	 */
+	public function setPlayerMustChooseColor($playerMustChooseColor)
+	{
+		$this->playerMustChooseColor = $playerMustChooseColor;
+	}
+
+	/**
+	 * @return Collection
+	 */
+	public function getParticipants()
+	{
+		return $this->participants;
 	}
 }

@@ -20,11 +20,53 @@
 namespace WildPHP\Modules\Uno;
 
 
+use WildPHP\Core\Connection\TextFormatter;
+
 class Card
 {
+	protected const COLORMAP = [
+		'r' => 'red',
+		'g' => 'green',
+		'b' => 'teal',
+		'y' => 'yellow'
+	];
+
+	protected const STRINGMAP = [
+		'color' => [
+			'r' => 'Red',
+			'g' => 'Green',
+			'b' => 'Blue',
+			'y' => 'Yellow',
+			'w' => 'Wild'
+		],
+		'type' => [
+			'd' => 'Draw Two',
+			's' => 'Skip',
+			'r' => 'Reverse'
+		]
+	];
+
+	/**
+	 * @var string
+	 */
 	protected $color = '';
 
+	/**
+	 * @var int|string
+	 */
 	protected $type = 0;
+
+	/**
+	 * Card constructor.
+	 *
+	 * @param string $color
+	 * @param string $type
+	 */
+	public function __construct(string $color, string $type = '')
+	{
+		$this->setColor($color);
+		$this->setType($type);
+	}
 
 	/**
 	 * @return string
@@ -43,18 +85,81 @@ class Card
 	}
 
 	/**
-	 * @return int
+	 * @return string|int
 	 */
-	public function getType(): int
+	public function getType()
 	{
 		return $this->type;
 	}
 
 	/**
-	 * @param int $type
+	 * @param string|int $type
 	 */
-	public function setType(int $type)
+	public function setType($type)
 	{
 		$this->type = $type;
+	}
+
+	/**
+	 * @param Card $card
+	 *
+	 * @return bool
+	 */
+	public function compatible(Card $card)
+	{
+		if ($this->getColor() == 'w' || $card->getColor() == 'w')
+			return true;
+
+		return $this->getColor() == $card->getColor() || $this->getType() == $card->getType();
+	}
+
+	/**
+	 * @return string
+	 */
+	public function toString(): string
+	{
+		return $this->getColor() . $this->getType();
+	}
+
+	/**
+	 * @return string
+	 */
+	public function format()
+	{
+		$color = $this->getColor();
+
+		if ($color == 'w' || !array_key_exists($color, self::COLORMAP))
+			return TextFormatter::bold($this->toString());
+
+		$color = self::COLORMAP[$color];
+		return TextFormatter::bold(TextFormatter::color($this->toString(), $color));
+	}
+
+	/**
+	 * @return string
+	 */
+	public function toHumanString()
+	{
+		if ($this->toString() == 'wd')
+			return 'Wild Draw Four';
+
+		$color = $this->getColor();
+		$type = $this->getType();
+		$color = self::STRINGMAP['color'][$color] ?? $color;
+		$type = self::STRINGMAP['type'][$type] ?? $type;
+		return $color . ' ' . $type;
+	}
+
+	/**
+	 * @param string $card
+	 *
+	 * @return Card
+	 */
+	public static function fromString(string $card): Card
+	{
+		$color = $card[0];
+		$type = $card[1] ?? '';
+		$card = new self($color, $type);
+		return $card;
 	}
 }

@@ -27,43 +27,107 @@
 namespace WildPHP\Modules\Uno;
 
 
-class Deck
-{
-	protected $cards = [];
+use Collections\Collection;
 
+class Deck extends Collection
+{
 	protected $allowColors = true;
 
-	public function addCard(string $card)
+	public function __construct()
 	{
-		if (!in_array($card, Game::$validCards))
-			throw new \InvalidArgumentException('Invalid card');
-
-		$this->cards[] = $card;
+		parent::__construct(Card::class);
 	}
 
-	public function addCards(array $cards)
+	public function sortCards()
 	{
-		foreach ($cards as $card)
-			$this->addCard($card);
+		$this->sort(function (Card $card1, Card $card2)
+		{
+			if ($card1->toString() == $card2->toString())
+				return 0;
+
+			return ($card1->toString() < $card2->toString()) ? -1 : 1;
+		});
 	}
 
-	public function removeCard(string $card)
+	/**
+	 * @return array
+	 */
+	public function allToString(): array
 	{
-		if (!$this->containsCard($card))
-			return false;
-
-		unset($this->cards[array_search($card, $this->cards)]);
-		return true;
+		$cards = $this->toArray();
+		/** @var Card $card */
+		foreach ($cards as $key => $card)
+		{
+			$cards[$key] = $card->toString();
+		}
+		return $cards;
 	}
 
-	public function containsCard(string $card)
+	/**
+	 * @return array
+	 */
+	public function allToHumanString(): array
 	{
-		return in_array($card, $this->cards);
+		$cards = $this->toArray();
+		/** @var Card $card */
+		foreach ($cards as $key => $card)
+		{
+			$cards[$key] = $card->toHumanString();
+		}
+		return $cards;
 	}
 
-	public function getCards()
+	/**
+	 * @return string[]
+	 */
+	public function formatAll()
 	{
-		return $this->cards;
+		$cards = $this->toArray();
+		/** @var Card $card */
+		foreach ($cards as $key => $card)
+		{
+			$cards[$key] = $card->format();
+		}
+		return $cards;
+	}
+
+	/**
+	 * @param string $card
+	 *
+	 * @return Card|false
+	 */
+	public function findCardByString(string $card)
+	{
+		return $this->find(function (Card $deckCard) use ($card)
+		{
+			return $deckCard->toString() == $card;
+		});
+	}
+
+	/**
+	 * @param Card $card
+	 *
+	 * @return Card|false
+	 */
+	public function findCard(Card $card)
+	{
+		return $this->find(function (Card $deckCard) use ($card)
+		{
+			return $deckCard == $card;
+		});
+	}
+
+	/**
+	 * @param Card $card
+	 *
+	 * @return bool
+	 */
+	public function removeCard(Card $card)
+	{
+		return $this->remove(function (Card $card1) use ($card)
+		{
+			return $card1 == $card;
+		});
 	}
 
 	/**

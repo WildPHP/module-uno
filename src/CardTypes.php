@@ -22,18 +22,15 @@ namespace WildPHP\Modules\Uno;
 
 class CardTypes
 {
-	const COLORS = [
-		'r' => 'Red',
-		'b' => 'Blue',
-		'g' => 'Green',
-		'y' => 'Yellow',
-		'p' => 'Purple',
-		'w' => 'Wild'
-	];
+	// Specials
+	const REVERSE = 'r';
+	const DRAW = 'd';
+	const SKIP = 's';
 
-	const TYPES = [
-		'd' => 'Draw Two', // WD is handled separately
-		'r' => 'Reverse',
-		's' => 'Skip'
-	];
+	// Colors
+	const RED = 'r';
+	const BLUE = 'b';
+	const GREEN = 'g';
+	const YELLOW = 'y';
+	const WILD = 'w';
 }

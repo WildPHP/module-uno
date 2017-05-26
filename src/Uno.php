@@ -19,17 +19,18 @@
 
 namespace WildPHP\Modules\Uno;
 
-use Flintstone\Config;
 use WildPHP\Core\Channels\Channel;
 use WildPHP\Core\Commands\CommandHandler;
 use WildPHP\Core\Commands\CommandHelp;
 use WildPHP\Core\ComponentContainer;
 use WildPHP\Core\Configuration\Configuration;
+use WildPHP\Core\Connection\IRCMessages\PART;
 use WildPHP\Core\Connection\Queue;
 use WildPHP\Core\Connection\TextFormatter;
 use WildPHP\Core\ContainerTrait;
 use WildPHP\Core\EventEmitter;
 use WildPHP\Core\Users\User;
+use WildPHP\Core\Users\UserCollection;
 
 class Uno
 {
@@ -50,12 +51,17 @@ class Uno
 		$commandHelp = new CommandHelp();
 		$commandHelp->addPage('Initiates a new game of UNO. No arguments.');
 		CommandHandler::fromContainer($container)
-			->registerCommand('newgame', [$this, 'startGameCommand'], $commandHelp, 0, 0, 'newgame');
+			->registerCommand('newgame', [$this, 'newgameCommand'], $commandHelp, 0, 0, 'newgame');
 
 		$commandHelp = new CommandHelp();
 		$commandHelp->addPage('Starts the initiated game of UNO. Use after all participants have joined. No arguments.');
 		CommandHandler::fromContainer($container)
 			->registerCommand('start', [$this, 'startCommand'], $commandHelp, 0, 0, 'newgame');
+
+		$commandHelp = new CommandHelp();
+		$commandHelp->addPage('Instruct the bot to join the current running game.');
+		CommandHandler::fromContainer($container)
+			->registerCommand('botenter', [$this, 'botenterCommand'], $commandHelp, 0, 0, 'botenter');
 
 		$commandHelp = new CommandHelp();
 		$commandHelp->addPage('Stops the running game of UNO.');
@@ -122,53 +128,26 @@ class Uno
 		CommandHandler::fromContainer($container)
 			->alias('cards', 'lsc');
 
-		EventEmitter::fromContainer($container)
-			->on('uno.populated', [$this, 'notifyNewCards']);
+		EventEmitter::fromContainer($container)->on('uno.deck.populate', [$this, 'notifyNewCards']);
 
 		$this->setContainer($container);
 	}
 
 	/**
-	 * @param string $card
-	 *
-	 * @return string
-	 */
-	public function formatCard(string $card): string
-	{
-		$colormap = [
-			'r' => 'red',
-			'g' => 'green',
-			'b' => 'teal',
-			'y' => 'yellow',
-			'w' => 'wild',
-		];
-		if (empty($card))
-			return '';
-
-		$color = $card[0];
-
-		if ($color == 'w' || !array_key_exists($color, $colormap))
-			return $card;
-
-		return TextFormatter::bold(TextFormatter::color($card, $colormap[$color]));
-	}
-
-	/**
-	 * @param Deck $deck
-	 * @param Game $game
+	 * @param Participant $participant
 	 * @param array $cards
 	 */
-	public function notifyNewCards(Deck $deck, Game $game, array $cards)
+	public function notifyNewCards(Participant $participant, array $cards)
 	{
-		$nickname = $game->getNicknameForDeck($deck);
+		$diff = new Deck();
+		$diff->addRange($cards);
+		$diff->sortCards();
+		$nickname = $participant->getUserObject()->getNickname();
 
-		sort($cards);
-
-		if ($deck->colorsAllowed())
-			foreach ($cards as $key => $card)
-			{
-				$cards[$key] = $this->formatCard($card);
-			}
+		if ($participant->getDeck()->colorsAllowed())
+			$cards = $diff->formatAll();
+		else
+			$cards = $diff->allToString();
 
 		$cards = implode(', ', $cards);
 		Queue::fromContainer($this->getContainer())
@@ -176,33 +155,41 @@ class Uno
 	}
 
 	/**
-	 * @param string $nickname
-	 * @param Deck $deck
+	 * @param Participant $participant
 	 */
-	public function noticeCardsToUser(string $nickname, Deck $deck)
+	public function noticeCards(Participant $participant)
 	{
-		$cards = $deck->getCards();
+		$deck = $participant->getDeck();
+		$nickname = $participant->getUserObject()->getNickname();
+		$deck->sortCards();
 
-		if (!empty($cards))
-		{
-			sort($cards);
+		if ($deck->colorsAllowed())
+			$cards = $deck->formatAll();
+		else
+			$cards = $deck->allToString();
 
-			if ($deck->colorsAllowed())
-				foreach ($cards as $key => $card)
-				{
-					$cards[$key] = $this->formatCard($card);
-				}
-
-			$cards = implode(', ', $cards);
-
-			Queue::fromContainer($this->getContainer())
-				->notice($nickname, 'You have the following cards: ' . $cards);
-
-			return;
-		}
+		$cards = implode(', ', $cards);
 
 		Queue::fromContainer($this->getContainer())
-			->notice($nickname, 'You have no cards. (wat)');
+			->notice($nickname, 'You have the following cards: ' . $cards);
+
+		return;
+	}
+
+	/**
+	 * @param Game $game
+	 * @param Channel $source
+	 */
+	public function advanceGame(Game $game, Channel $source)
+	{
+		$game->setCurrentPlayerHasDrawn(false);
+		$game->setPlayerMustChooseColor(false);
+		$nextParticipant = $game->advance();
+		$botUserObject = UserCollection::fromContainer($this->getContainer())->getSelf();
+		if ($nextParticipant->getUserObject() === $botUserObject)
+			$this->playAutomaticCard($game, $source);
+		else
+			$this->noticeCards($nextParticipant);
 	}
 
 	/**
@@ -211,16 +198,102 @@ class Uno
 	 */
 	public function announceNextTurn(Game $game, Channel $source)
 	{
-		$game->setDrawn(false);
-		$nextDeck = $game->getDeckForNextParticipant();
-		$nickname = $game->getNicknameForDeck($nextDeck);
+		if (!$game->isStarted())
+			return;
+
+		$nextParticipant = $game->getNextPlayer();
+		$nickname = $nextParticipant->getUserObject()->getNickname();
 		$lastCard = $game->getLastCard();
-		$lastCardReadable = $game->getReadableCardFormat($lastCard);
-		$lastCard = $this->formatCard($lastCard);
+		$lastCardFormatted = $lastCard->format();
+		$lastCardReadable = $lastCard->toHumanString();
 
 		Queue::fromContainer($this->getContainer())
-			->privmsg($source->getName(), 'It is ' . $nickname . '\'s turn. The current card is ' . $lastCardReadable . ' (' . $lastCard . ')');
-		$this->noticeCardsToUser($nickname, $nextDeck);
+				->privmsg($source->getName(), $nickname . ' is up! The current card is ' . $lastCardReadable . ' (' . $lastCardFormatted . ')');
+	}
+
+	public function playAutomaticCard(Game $game, Channel $source)
+	{
+		$participant = $game->getCurrentPlayer();
+		$validCards = $game->deckGetValidCards($participant->getDeck());
+
+		if (empty($validCards) && !$game->currentPlayerHasDrawn())
+			$this->drawCardInGame($game, $source);
+
+		$validCards = $game->deckGetValidCards($participant->getDeck());
+		if (empty($validCards) && $game->currentPlayerHasDrawn())
+		{
+			$this->passTurnInGame($game, $source);
+			$this->announceNextTurn($game, $source);
+			$this->advanceGame($game, $source);
+			return;
+		}
+
+		$card = array_shift($validCards);
+		$result = $this->playCardInGame($game, $card, $participant, $source);
+
+		if (!$game->isStarted())
+			return;
+
+		if (!$result && $game->playerMustChooseColor())
+		{
+			$deck = $participant->getDeck();
+
+			$count['g'] = count($deck->find(function (Card $card)
+			{
+				return $card->getColor() == CardTypes::GREEN;
+			}));
+
+			$count['b'] = count($deck->find(function (Card $card)
+			{
+				return $card->getColor() == CardTypes::BLUE;
+			}));
+
+			$count['y'] = count($deck->find(function (Card $card)
+			{
+				return $card->getColor() == CardTypes::YELLOW;
+			}));
+
+			$count['r'] = count($deck->find(function (Card $card)
+			{
+				return $card->getColor() == CardTypes::RED;
+			}));
+
+			$count = array_flip($count);
+			sort($count);
+			$color = end($count);
+			$color = new Card($color);
+			$message = '';
+			$game->playCard($deck, $color, $message);
+			$readableColor = $color->toHumanString();
+			$formattedColor = $color->format();
+			Queue::fromContainer($this->getContainer())
+				->privmsg($source->getName(), $participant->getUserObject()->getNickname() . ' picked color ' . $readableColor . ' (' . $formattedColor . ')');
+		}
+		$this->announceNextTurn($game, $source);
+		$this->advanceGame($game, $source);
+	}
+
+	/**
+	 * @param Game $game
+	 * @param Channel $source
+	 */
+	public function announceOrder(Game $game, Channel $source)
+	{
+		$participants = $game->getParticipants()->toArray();
+
+		if ($game->isReversed())
+			$participants = array_reverse($participants);
+
+		/** @var Participant $participant */
+		$nicknames = [];
+		foreach ($participants as $participant)
+		{
+			$nicknames[] = TextFormatter::bold($participant->getUserObject()->getNickname());
+		}
+
+		$message = 'The current order is: ' . implode(' -> ', $nicknames);
+		Queue::fromContainer($this->getContainer())
+			->privmsg($source->getName(), $message);
 	}
 
 	/**
@@ -229,7 +302,7 @@ class Uno
 	 * @param array $args
 	 * @param ComponentContainer $container
 	 */
-	public function startGameCommand(Channel $source, User $user, array $args, ComponentContainer $container)
+	public function newgameCommand(Channel $source, User $user, array $args, ComponentContainer $container)
 	{
 		$game = $this->findGameForChannel($source);
 		if ($game && $game->isStarted())
@@ -248,14 +321,17 @@ class Uno
 		}
 
 		$game = new Game($container);
-		$game->addParticipant($user);
+		$participant = $game->createParticipant($user);
+
 		$prefix = Configuration::fromContainer($container)
 			->get('prefix')
 			->getValue();
+
 		Queue::fromContainer($container)
 			->privmsg($source->getName(),
 				'A game has been opened and you have joined. Use ' . $prefix . 'enter to join, ' . $prefix . 'start to start the game.');
-		$this->noticeCardsToUser($user->getNickname(), $game->getDeckForUser($user));
+
+		$this->noticeCards($participant);
 		$this->games[$source->getName()] = $game;
 	}
 
@@ -282,12 +358,25 @@ class Uno
 
 			return;
 		}
+		if (count($game->getParticipants()) == 1)
+			$this->addBotPlayer($game, $source);
+
 		$game->setStarted(true);
-		$game->getDeckForPreviousParticipant();
-		$game->setLastCard($game->pickRandomCard(1, true)[0]);
+		$game->rewind();
+		$game->setLastCard($game->drawRandomCard(1, true)[0]);
+
 		Queue::fromContainer($this->getContainer())
 			->privmsg($source->getName(), 'Game started!');
+
 		$this->announceNextTurn($game, $source);
+		$this->advanceGame($game, $source);
+	}
+
+	public function addBotPlayer(Game $game, Channel $source)
+	{
+		$botObject = UserCollection::fromContainer($this->getContainer())->getSelf();
+		$game->createParticipant($botObject);
+		Queue::fromContainer($this->getContainer())->privmsg($source->getName(), 'I also entered the game. Brace yourself ;)');
 	}
 
 	/**
@@ -321,7 +410,7 @@ class Uno
 	public function togglecolorsCommand(Channel $source, User $user, array $args, ComponentContainer $container)
 	{
 		$game = $this->findGameForChannel($source);
-		if (!$game || !$game->isParticipant($user))
+		if (!$game || !$game->isUserParticipant($user))
 		{
 			Queue::fromContainer($container)
 				->privmsg($source->getName(), 'A game has not been started or you are not added to it. Colors are toggled on a per-game basis.');
@@ -329,12 +418,28 @@ class Uno
 			return;
 		}
 
-		$deck = $game->getDeckForUser($user);
+		$deck = $game->findParticipantForUser($user)->getDeck();
 		$deck->setAllowColors(!$deck->colorsAllowed());
 		$allowed = $deck->colorsAllowed();
 		Queue::fromContainer($container)
 			->notice($user->getNickname(),
 				'Your color preferences have been updated. Colors in personal messages are now ' . ($allowed ? 'enabled' : 'disabled') . ' for UNO.');
+	}
+
+	public function botenterCommand(Channel $source, User $user, array $args, ComponentContainer $container)
+	{
+		$game = $this->findGameForChannel($source);
+		$botObject = UserCollection::fromContainer($this->getContainer())->getSelf();
+		if (!$game || $game->isStarted() || $game->isUserParticipant($botObject))
+		{
+			Queue::fromContainer($container)
+				->privmsg($source->getName(),
+					$user->getNickname() . ': A game has not been started, is already running, or I am already a participant.');
+
+			return;
+		}
+
+		$this->addBotPlayer($game, $source);
 	}
 
 	/**
@@ -346,7 +451,7 @@ class Uno
 	public function enterCommand(Channel $source, User $user, array $args, ComponentContainer $container)
 	{
 		$game = $this->findGameForChannel($source);
-		if (!$game || $game->isStarted() || $game->isParticipant($user))
+		if (!$game || $game->isStarted() || $game->isUserParticipant($user))
 		{
 			Queue::fromContainer($container)
 				->privmsg($source->getName(),
@@ -355,12 +460,12 @@ class Uno
 			return;
 		}
 
-		$game->addParticipant($user);
+		$participant = $game->createParticipant($user);
 		Queue::fromContainer($container)
 			->privmsg($source->getName(), $user->getNickname() .
 				': You have joined the UNO game. Please take a moment to read the basic rules by entering the unorules command.');
 
-		$this->noticeCardsToUser($user->getNickname(), $game->getDeckForUser($user));
+		$this->noticeCards($participant);
 	}
 
 	/**
@@ -372,7 +477,7 @@ class Uno
 	public function cardsCommand(Channel $source, User $user, array $args, ComponentContainer $container)
 	{
 		$game = $this->findGameForChannel($source);
-		if (!$game || !$game->isStarted() || !$game->isParticipant($user))
+		if (!$game || !$game->isStarted() || !$game->isUserParticipant($user))
 		{
 			Queue::fromContainer($container)
 				->privmsg($source->getName(), $user->getNickname() . ': A game has not been started or you are no participant.');
@@ -380,8 +485,8 @@ class Uno
 			return;
 		}
 
-		$deck = $game->getDeckForUser($user);
-		$this->noticeCardsToUser($user->getNickname(), $deck);
+		$participant = $game->findParticipantForUser($user);
+		$this->noticeCards($participant);
 	}
 
 	/**
@@ -393,7 +498,7 @@ class Uno
 	public function passCommand(Channel $source, User $user, array $args, ComponentContainer $container)
 	{
 		$game = $this->findGameForChannel($source);
-		if (!$game || !$game->isStarted() || !$game->isParticipant($user))
+		if (!$game || !$game->isStarted() || !$game->isUserParticipant($user))
 		{
 			Queue::fromContainer($container)
 				->privmsg($source->getName(), $user->getNickname() . ': A game has not been started or you are no participant.');
@@ -401,16 +506,18 @@ class Uno
 			return;
 		}
 
-		if (($nickname = $game->waitingOnPlayerColor()))
+		$currentParticipant = $game->getCurrentPlayer();
+		$userParticipant = $game->findParticipantForUser($user);
+
+		if (($colorChoosingParticipant = $game->playerMustChooseColor()))
 		{
 			Queue::fromContainer($container)
-				->privmsg($source->getName(), $user->getNickname() . ': Waiting for ' . $nickname . ' to pick a color (r/g/b/y)');
+				->privmsg($source->getName(), $user->getNickname() . ': Waiting for ' . $colorChoosingParticipant->getUserObject()->getNickname() . ' to pick a color (r/g/b/y)');
 
 			return;
 		}
 
-		$deck = $game->GetCurrentParticipant();
-		if ($game->getNicknameForDeck($deck) != $user->getNickname())
+		if ($currentParticipant !== $userParticipant)
 		{
 			Queue::fromContainer($container)
 				->privmsg($source->getName(), $user->getNickname() . ': It is not your turn.');
@@ -418,7 +525,7 @@ class Uno
 			return;
 		}
 
-		if (!$game->isDrawn())
+		if (!$game->currentPlayerHasDrawn())
 		{
 			Queue::fromContainer($container)
 				->privmsg($source->getName(), $user->getNickname() . ': You need to draw a card first.');
@@ -429,6 +536,7 @@ class Uno
 		Queue::fromContainer($container)
 			->privmsg($source->getName(), $user->getNickname() . ' passed a turn.');
 		$this->announceNextTurn($game, $source);
+		$this->advanceGame($game, $source);
 	}
 
 	/**
@@ -440,7 +548,7 @@ class Uno
 	public function drawCommand(Channel $source, User $user, array $args, ComponentContainer $container)
 	{
 		$game = $this->findGameForChannel($source);
-		if (!$game || !$game->isStarted() || !$game->isParticipant($user))
+		if (!$game || !$game->isStarted() || !$game->isUserParticipant($user))
 		{
 			Queue::fromContainer($container)
 				->privmsg($source->getName(), $user->getNickname() . ': A game has not been started or you are no participant.');
@@ -448,16 +556,18 @@ class Uno
 			return;
 		}
 
-		if (($nickname = $game->waitingOnPlayerColor()))
+		$currentParticipant = $game->getCurrentPlayer();
+		$userParticipant = $game->findParticipantForUser($user);
+
+		if (($colorChoosingParticipant = $game->playerMustChooseColor()))
 		{
 			Queue::fromContainer($container)
-				->privmsg($source->getName(), $user->getNickname() . ': Waiting for ' . $nickname . ' to pick a color (r/g/b/y)');
+				->privmsg($source->getName(), $user->getNickname() . ': Waiting for ' . $colorChoosingParticipant->getUserObject()->getNickname() . ' to pick a color (r/g/b/y)');
 
 			return;
 		}
 
-		$deck = $game->GetCurrentParticipant();
-		if ($game->getNicknameForDeck($deck) != $user->getNickname())
+		if ($currentParticipant !== $userParticipant)
 		{
 			Queue::fromContainer($container)
 				->privmsg($source->getName(), $user->getNickname() . ': It is not your turn.');
@@ -465,7 +575,7 @@ class Uno
 			return;
 		}
 
-		if ($game->isDrawn())
+		if ($game->currentPlayerHasDrawn())
 		{
 			Queue::fromContainer($container)
 				->privmsg($source->getName(), $user->getNickname() . ': You cannot draw a card twice.');
@@ -473,10 +583,30 @@ class Uno
 			return;
 		}
 
-		$game->populateDeck($deck, 1);
-		Queue::fromContainer($container)
-			->privmsg($source->getName(), $user->getNickname() . ' drew a card.');
-		$game->setDrawn(true);
+		$cards = $this->drawCardInGame($game, $source);
+		$this->notifyNewCards($currentParticipant, $cards);
+
+	}
+
+	public function drawCardInGame(Game $game, Channel $source, bool $announce = true): array
+	{
+		$participant = $game->getCurrentPlayer();
+		$cards = $game->populateDeckForParticipant($participant, 1);
+
+		if ($announce)
+			Queue::fromContainer($this->getContainer())
+				->privmsg($source->getName(), $participant->getUserObject()->getNickname() . ' drew a card.');
+
+		$game->setCurrentPlayerHasDrawn(true);
+		return $cards;
+	}
+
+	public function passTurnInGame(Game $game, Channel $source, bool $announce = true)
+	{
+		$participant = $game->getCurrentPlayer();
+		if ($announce)
+			Queue::fromContainer($this->getContainer())
+				->privmsg($source->getName(), $participant->getUserObject()->getNickname() . ' passed a turn.');
 	}
 
 	/**
@@ -488,7 +618,7 @@ class Uno
 	public function validmovesCommand(Channel $source, User $user, array $args, ComponentContainer $container)
 	{
 		$game = $this->findGameForChannel($source);
-		if (!$game || !$game->isStarted() || !$game->isParticipant($user))
+		if (!$game || !$game->isStarted() || !$game->isUserParticipant($user))
 		{
 			Queue::fromContainer($container)
 				->privmsg($source->getName(), $user->getNickname() . ': A game has not been started or you are no participant.');
@@ -496,13 +626,13 @@ class Uno
 			return;
 		}
 
-		$deck = $game->getDeckForUser($user);
-		$validCards = $game->deckGetValidCards($deck);
+		$participant = $game->findParticipantForUser($user);
+		$validCards = $game->deckGetValidCards($participant->getDeck());
 		$currentCard = $game->getLastCard();
-		$readableCard = $game->getReadableCardFormat($currentCard);
+		$readableCard = $currentCard->toString();
 
-		if ($deck->colorsAllowed())
-			$currentCard = $this->formatCard($currentCard);
+		if ($participant->getDeck()->colorsAllowed())
+			$currentCard = $currentCard->format();
 
 		$currentCard = $readableCard . ' (' . $currentCard . ')';
 
@@ -514,11 +644,12 @@ class Uno
 			return;
 		}
 
-		if ($deck->colorsAllowed())
-			foreach ($validCards as $key => $card)
-			{
-				$validCards[$key] = $this->formatCard($card);
-			}
+		if ($participant->getDeck()->colorsAllowed())
+		{
+			$deck = new Deck();
+			$deck->addRange($validCards);
+			$validCards = $deck->formatAll();
+		}
 
 		Queue::fromContainer($container)
 			->notice($user->getNickname(), 'Valid moves against ' . $currentCard . ' are: ' . implode(', ', $validCards));
@@ -533,7 +664,7 @@ class Uno
 	public function playCommand(Channel $source, User $user, array $args, ComponentContainer $container)
 	{
 		$game = $this->findGameForChannel($source);
-		if (!$game || !$game->isStarted() || !$game->isParticipant($user))
+		if (!$game || !$game->isStarted() || !$game->isUserParticipant($user))
 		{
 			Queue::fromContainer($container)
 				->privmsg($source->getName(), $user->getNickname() . ': A game has not been started or you are no participant.');
@@ -541,16 +672,18 @@ class Uno
 			return;
 		}
 
-		if (($nickname = $game->waitingOnPlayerColor()))
+		$currentParticipant = $game->getCurrentPlayer();
+		$userParticipant = $game->findParticipantForUser($user);
+
+		if (($colorChoosingParticipant = $game->playerMustChooseColor()))
 		{
 			Queue::fromContainer($container)
-				->privmsg($source->getName(), $user->getNickname() . ': Waiting for ' . $nickname . ' to pick a color (r/g/b/y)');
+				->privmsg($source->getName(), $user->getNickname() . ': Waiting for ' . $colorChoosingParticipant->getUserObject()->getNickname() . ' to pick a color (r/g/b/y)');
 
 			return;
 		}
 
-		$deck = $game->GetCurrentParticipant();
-		if ($game->getNicknameForDeck($deck) != $user->getNickname())
+		if ($currentParticipant !== $userParticipant)
 		{
 			Queue::fromContainer($container)
 				->privmsg($source->getName(), $user->getNickname() . ': It is not your turn.');
@@ -559,7 +692,8 @@ class Uno
 		}
 
 		$card = strtolower($args[0]);
-		if (!$deck->containsCard($card))
+		$card = Card::fromString($card);
+		if (!$currentParticipant->getDeck()->findCard($card))
 		{
 			Queue::fromContainer($container)
 				->notice($user->getNickname(), 'You do not have that card.');
@@ -567,7 +701,7 @@ class Uno
 			return;
 		}
 
-		if (!$game->cardIsCompatible($game->getLastCard(), $card))
+		if (!$card->compatible($game->getLastCard()))
 		{
 			Queue::fromContainer($container)
 				->notice($user->getNickname(), 'That is not a valid move.');
@@ -575,39 +709,76 @@ class Uno
 			return;
 		}
 
-		$response = $game->playCard($user, $card);
-		$friendlyCardName = $game->getReadableCardFormat($card);
-		$card = $this->formatCard($card);
-		$message = $user->getNickname() . ' played ' . $friendlyCardName . ' (' . $card . ')!';
+		if ($this->playCardInGame($game, $card, $currentParticipant, $source))
+		{
+			$this->announceNextTurn($game, $source);
+			$this->advanceGame($game, $source);
+		}
+	}
+
+	/**
+	 * @param Game $game
+	 * @param Card $card
+	 * @param Participant $participant
+	 * @param Channel $channel
+	 *
+	 * @return bool Suggestion whether the game should announce the next player.
+	 */
+	public function playCardInGame(Game $game, Card $card, Participant $participant, Channel $channel)
+	{
+		$deck = $participant->getDeck();
+		$reverseState = $game->isReversed();
+		$nickname = $participant->getUserObject()->getNickname();
+
+		$response = '';
+		$game->playCard($deck, $card, $response);
+
+		$friendlyCardName = $card->toHumanString();
+		$formattedCard = $card->format();
+		$message = $nickname . ' played ' . $friendlyCardName . ' (' . $formattedCard . ')!';
 		if (!empty($response))
 			$message .= ' ' . $response;
 
-		Queue::fromContainer($container)
-			->privmsg($source->getName(), $message);
+		Queue::fromContainer($this->getContainer())
+			->privmsg($channel->getName(), $message);
 
-		if (count($deck->getCards()) == 0)
+		if (count($deck->toArray()) == 0)
 		{
-			Queue::fromContainer($container)
-				->privmsg($source->getName(), $user->getNickname() . ' has played their last card and won! GG!');
-			$this->stopGame($source);
+			Queue::fromContainer($this->getContainer())
+				->privmsg($channel->getName(), $nickname . ' has played their last card and won! GG!');
 
-			return;
+			$participants = $game->getParticipants()->toArray();
+			/** @var Participant $participant */
+			foreach ($participants as $participant)
+			{
+				$deck = $participant->getDeck();
+				$cards = $deck->formatAll();
+				if (empty($cards))
+					continue;
+				Queue::fromContainer($this->getContainer())
+					->privmsg($channel->getName(), $participant->getUserObject()->getNickname() . ' ended with these cards: ' . implode(', ', $cards));
+			}
+			$this->stopGame($channel);
+
+			return false;
 		}
 
-		if (count($deck->getCards()) == 1)
-			Queue::fromContainer($container)
-				->privmsg($source->getName(), $user->getNickname() . ' has UNO!');
+		if ($reverseState != $game->isReversed())
+			$this->announceOrder($game, $channel);
 
+		if (count($deck->toArray()) == 1)
+			Queue::fromContainer($this->getContainer())
+				->privmsg($channel->getName(), $participant->getUserObject()->getNickname() . ' has UNO!');
 
-		if ($game->waitingOnPlayerColor())
+		if (($colorChoosingParticipant = $game->playerMustChooseColor()))
 		{
-			Queue::fromContainer($container)
-				->privmsg($source->getName(), $user->getNickname() . ' must now choose a color (r/g/b/y) (choose using the color command)');
+			Queue::fromContainer($this->getContainer())
+				->privmsg($channel->getName(), $colorChoosingParticipant->getUserObject()->getNickname() . ' must now choose a color (r/g/b/y) (choose using the color command)');
 
-			return;
+			return false;
 		}
 
-		$this->announceNextTurn($game, $source);
+		return true;
 	}
 
 	/**
@@ -615,6 +786,7 @@ class Uno
 	 */
 	public function stopGame(Channel $source)
 	{
+		$this->games[$source->getName()]->setStarted(false);
 		unset($this->games[$source->getName()]);
 	}
 
@@ -653,7 +825,7 @@ class Uno
 	public function colorCommand(Channel $source, User $user, array $args, ComponentContainer $container)
 	{
 		$game = $this->findGameForChannel($source);
-		if (!$game || !$game->isStarted() || !$game->isParticipant($user))
+		if (!$game || !$game->isStarted() || !$game->isUserParticipant($user))
 		{
 			Queue::fromContainer($container)
 				->privmsg($source->getName(), $user->getNickname() . ': A game has not been started or you are no participant.');
@@ -661,7 +833,8 @@ class Uno
 			return;
 		}
 
-		if (!$game->waitingOnPlayerColor())
+		$colorChoosingParticipant = $game->playerMustChooseColor();
+		if (!$colorChoosingParticipant)
 		{
 			Queue::fromContainer($container)
 				->privmsg($source->getName(), $user->getNickname() . ': A color cannot be picked now.');
@@ -669,10 +842,12 @@ class Uno
 			return;
 		}
 
-		if ($game->waitingOnPlayerColor() != $user->getNickname())
+		$userParticipant = $game->findParticipantForUser($user);
+
+		if ($colorChoosingParticipant !== $userParticipant)
 		{
 			Queue::fromContainer($container)
-				->privmsg($source->getName(), $game->waitingOnPlayerColor() . ' must choose a new color.');
+				->privmsg($source->getName(), $colorChoosingParticipant->getUserObject()->getNickname() . ' must choose a new color.');
 
 			return;
 		}
@@ -686,10 +861,13 @@ class Uno
 			return;
 		}
 
-		$game->setColor($color);
+		$color = new Card($color);
+		$message = '';
+		$game->playCard($colorChoosingParticipant->getDeck(), $color, $message);
 		Queue::fromContainer($container)
 			->privmsg($source->getName(), 'A color was picked!');
 		$this->announceNextTurn($game, $source);
+		$this->advanceGame($game, $source);
 	}
 
 	/**

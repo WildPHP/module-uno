@@ -21,7 +21,6 @@ namespace WildPHP\Modules\Uno;
 
 use Collections\Collection;
 use WildPHP\Core\ComponentContainer;
-use WildPHP\Core\Connection\IRCMessages\PART;
 use WildPHP\Core\EventEmitter;
 use WildPHP\Core\Logger\Logger;
 use WildPHP\Core\Users\User;
@@ -83,6 +82,11 @@ class Game
 	 * @var false|Participant
 	 */
 	protected $playerMustChooseColor = false;
+
+	/**
+	 * @var int
+	 */
+	protected $startTime = 0;
 
 	/**
 	 * Game constructor.
@@ -499,5 +503,21 @@ class Game
 	public function getParticipants()
 	{
 		return $this->participants;
+	}
+
+	/**
+	 * @return int
+	 */
+	public function getStartTime(): int
+	{
+		return $this->startTime;
+	}
+
+	/**
+	 * @param int $startTime
+	 */
+	public function setStartTime(int $startTime)
+	{
+		$this->startTime = $startTime;
 	}
 }

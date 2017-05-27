@@ -24,11 +24,11 @@ use WildPHP\Core\Commands\CommandHandler;
 use WildPHP\Core\Commands\CommandHelp;
 use WildPHP\Core\ComponentContainer;
 use WildPHP\Core\Configuration\Configuration;
-use WildPHP\Core\Connection\IRCMessages\PART;
 use WildPHP\Core\Connection\Queue;
 use WildPHP\Core\Connection\TextFormatter;
 use WildPHP\Core\ContainerTrait;
 use WildPHP\Core\EventEmitter;
+use WildPHP\Core\Logger\Logger;
 use WildPHP\Core\Users\User;
 use WildPHP\Core\Users\UserCollection;
 
@@ -228,6 +228,34 @@ class Uno
 			return;
 		}
 
+		usort($validCards, function (Card $card1, Card $card2)
+		{
+			if ($card1->toString() == $card2->toString())
+				return 0;
+
+			return ($card1->toString() > $card2->toString()) ? -1 : 1;
+		});
+
+		// First play the current color
+		$currentCard = $game->getLastCard();
+		$cardsCurrentColor = array_filter($validCards, function (Card $card) use ($currentCard)
+		{
+			return $card->getColor() == $currentCard->getColor();
+		});
+
+		// Avoid changing the color all the time...
+		if (empty($cardsCurrentColor))
+		{
+			$cardsNoWild = array_filter($validCards, function (Card $card)
+			{
+				return $card->getColor() != 'w';
+			});
+			if (!empty($cardsNoWild))
+				$validCards = $cardsNoWild;
+		}
+		else
+			$validCards = $cardsCurrentColor;
+
 		$card = array_shift($validCards);
 		$result = $this->playCardInGame($game, $card, $participant, $source);
 
@@ -238,28 +266,28 @@ class Uno
 		{
 			$deck = $participant->getDeck();
 
-			$count['g'] = count($deck->find(function (Card $card)
+			$count['g'] = count($deck->findAll(function (Card $card)
 			{
 				return $card->getColor() == CardTypes::GREEN;
 			}));
 
-			$count['b'] = count($deck->find(function (Card $card)
+			$count['b'] = count($deck->findAll(function (Card $card)
 			{
 				return $card->getColor() == CardTypes::BLUE;
 			}));
 
-			$count['y'] = count($deck->find(function (Card $card)
+			$count['y'] = count($deck->findAll(function (Card $card)
 			{
 				return $card->getColor() == CardTypes::YELLOW;
 			}));
 
-			$count['r'] = count($deck->find(function (Card $card)
+			$count['r'] = count($deck->findAll(function (Card $card)
 			{
 				return $card->getColor() == CardTypes::RED;
 			}));
 
 			$count = array_flip($count);
-			sort($count);
+			ksort($count);
 			$color = end($count);
 			$color = new Card($color);
 			$message = '';
@@ -362,6 +390,7 @@ class Uno
 			$this->addBotPlayer($game, $source);
 
 		$game->setStarted(true);
+		$game->setStartTime(time());
 		$game->rewind();
 		$game->setLastCard($game->drawRandomCard(1, true)[0]);
 

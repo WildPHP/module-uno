@@ -147,7 +147,7 @@ class Card
 		$type = $this->getType();
 		$color = self::STRINGMAP['color'][$color] ?? $color;
 		$type = self::STRINGMAP['type'][$type] ?? $type;
-		return $color . ' ' . $type;
+		return $color . (!empty($type) ? ' ' . $type : '');
 	}
 
 	/**

@@ -1,7 +1,7 @@
 {
     "name": "wildphp/module-uno",
     "description": "UNO game module for WildPHP",
-    "license": "GPL-3.0",
+    "license": "MIT",
     "authors": [
         {
             "name": "Yoshi2889",

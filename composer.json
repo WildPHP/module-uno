@@ -9,6 +9,7 @@
         }
     ],
     "require": {
+        "danielgsims/php-collections": "^1"
     },
     "autoload": {
         "psr-4": {

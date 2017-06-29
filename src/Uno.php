@@ -17,7 +17,6 @@ use WildPHP\Core\Connection\Queue;
 use WildPHP\Core\Connection\TextFormatter;
 use WildPHP\Core\ContainerTrait;
 use WildPHP\Core\EventEmitter;
-use WildPHP\Core\Logger\Logger;
 use WildPHP\Core\Users\User;
 use WildPHP\Core\Users\UserCollection;
 
@@ -200,6 +199,10 @@ class Uno
 				->privmsg($source->getName(), $nickname . ' is up! The current card is ' . $lastCardReadable . ' (' . $lastCardFormatted . ')');
 	}
 
+	/**
+	 * @param Game $game
+	 * @param Channel $source
+	 */
 	public function playAutomaticCard(Game $game, Channel $source)
 	{
 		$participant = $game->getCurrentPlayer();
@@ -390,6 +393,10 @@ class Uno
 		$this->advanceGame($game, $source);
 	}
 
+	/**
+	 * @param Game $game
+	 * @param Channel $source
+	 */
 	public function addBotPlayer(Game $game, Channel $source)
 	{
 		$botObject = UserCollection::fromContainer($this->getContainer())->getSelf();
@@ -444,6 +451,12 @@ class Uno
 				'Your color preferences have been updated. Colors in personal messages are now ' . ($allowed ? 'enabled' : 'disabled') . ' for UNO.');
 	}
 
+	/**
+	 * @param Channel $source
+	 * @param User $user
+	 * @param array $args
+	 * @param ComponentContainer $container
+	 */
 	public function botenterCommand(Channel $source, User $user, array $args, ComponentContainer $container)
 	{
 		$game = $this->findGameForChannel($source);
@@ -606,6 +619,13 @@ class Uno
 
 	}
 
+	/**
+	 * @param Game $game
+	 * @param Channel $source
+	 * @param bool $announce
+	 *
+	 * @return array
+	 */
 	public function drawCardInGame(Game $game, Channel $source, bool $announce = true): array
 	{
 		$participant = $game->getCurrentPlayer();
@@ -619,6 +639,11 @@ class Uno
 		return $cards;
 	}
 
+	/**
+	 * @param Game $game
+	 * @param Channel $source
+	 * @param bool $announce
+	 */
 	public function passTurnInGame(Game $game, Channel $source, bool $announce = true)
 	{
 		$participant = $game->getCurrentPlayer();

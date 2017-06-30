@@ -343,9 +343,7 @@ class Uno
 		$game = new Game($container);
 		$participant = $game->createParticipant($user);
 
-		$prefix = Configuration::fromContainer($container)
-			->get('prefix')
-			->getValue();
+		$prefix = Configuration::fromContainer($container)['prefix'];
 
 		Queue::fromContainer($container)
 			->privmsg($source->getName(),
@@ -841,9 +839,7 @@ class Uno
 	 */
 	public function unorulesCommand(Channel $source, User $user, array $args, ComponentContainer $container)
 	{
-		$prefix = Configuration::fromContainer($container)
-			->get('prefix')
-			->getValue();
+		$prefix = Configuration::fromContainer($container)['prefix'];
 		Queue::fromContainer($container)
 			->notice($user->getNickname(),
 				'You will be assigned 10 cards when you join the game. The objective is to get rid of all your cards first. To play a card, use the ' .

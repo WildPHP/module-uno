@@ -19,7 +19,6 @@ use WildPHP\Core\ContainerTrait;
 use WildPHP\Core\EventEmitter;
 use WildPHP\Core\Modules\BaseModule;
 use WildPHP\Core\Users\User;
-use WildPHP\Core\Users\UserCollection;
 
 class Uno extends BaseModule
 {
@@ -174,8 +173,8 @@ class Uno extends BaseModule
 		$game->setCurrentPlayerHasDrawn(false);
 		$game->setPlayerMustChooseColor(false);
 		$nextParticipant = $game->advance();
-		$botUserObject = UserCollection::fromContainer($this->getContainer())->getSelf();
-		if ($nextParticipant->getUserObject() === $botUserObject)
+		$ownNickname = Configuration::fromContainer($this->getContainer())['currentNickname'];
+		if ($nextParticipant->getUserObject()->getNickname() == $ownNickname)
 			$this->playAutomaticCard($game, $source);
 		else
 			$this->noticeCards($nextParticipant);
@@ -398,7 +397,8 @@ class Uno extends BaseModule
 	 */
 	public function addBotPlayer(Game $game, Channel $source)
 	{
-		$botObject = UserCollection::fromContainer($this->getContainer())->getSelf();
+		$ownNickname = Configuration::fromContainer($this->getContainer())['currentNickname'];
+		$botObject = $source->getUserCollection()->findByNickname($ownNickname);
 		$game->createParticipant($botObject);
 		Queue::fromContainer($this->getContainer())->privmsg($source->getName(), 'I also entered the game. Brace yourself ;)');
 	}
@@ -459,7 +459,8 @@ class Uno extends BaseModule
 	public function botenterCommand(Channel $source, User $user, array $args, ComponentContainer $container)
 	{
 		$game = $this->findGameForChannel($source);
-		$botObject = UserCollection::fromContainer($this->getContainer())->getSelf();
+		$ownNickname = Configuration::fromContainer($this->getContainer())['currentNickname'];
+		$botObject = $source->getUserCollection()->findByNickname($ownNickname);
 		if (!$game || $game->isStarted() || $game->isUserParticipant($botObject))
 		{
 			Queue::fromContainer($container)

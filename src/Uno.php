@@ -926,5 +926,11 @@ class Uno extends BaseModule
 		return $this->games[$name];
 	}
 
-
+	/**
+	 * @return string
+	 */
+	public static function getSupportedVersionConstraint(): string
+	{
+		return '^3.0.0';
+	}
 }

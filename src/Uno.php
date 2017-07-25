@@ -37,67 +37,67 @@ class Uno extends BaseModule
 	public function __construct(ComponentContainer $container)
 	{
 		$commandHelp = new CommandHelp();
-		$commandHelp->addPage('Initiates a new game of UNO. No arguments.');
+		$commandHelp->append('Initiates a new game of UNO. No arguments.');
 		CommandHandler::fromContainer($container)
 			->registerCommand('newgame', [$this, 'newgameCommand'], $commandHelp, 0, 0, 'newgame');
 
 		$commandHelp = new CommandHelp();
-		$commandHelp->addPage('Starts the initiated game of UNO. Use after all participants have joined. No arguments.');
+		$commandHelp->append('Starts the initiated game of UNO. Use after all participants have joined. No arguments.');
 		CommandHandler::fromContainer($container)
 			->registerCommand('start', [$this, 'startCommand'], $commandHelp, 0, 0, 'newgame');
 
 		$commandHelp = new CommandHelp();
-		$commandHelp->addPage('Instruct the bot to join the current running game.');
+		$commandHelp->append('Instruct the bot to join the current running game.');
 		CommandHandler::fromContainer($container)
 			->registerCommand('botenter', [$this, 'botenterCommand'], $commandHelp, 0, 0, 'botenter');
 
 		$commandHelp = new CommandHelp();
-		$commandHelp->addPage('Stops the running game of UNO.');
+		$commandHelp->append('Stops the running game of UNO.');
 		CommandHandler::fromContainer($container)
 			->registerCommand('stop', [$this, 'stopCommand'], $commandHelp, 0, 0, 'newgame');
 
 		$commandHelp = new CommandHelp();
-		$commandHelp->addPage('Enter as a participant in the running game of UNO.');
+		$commandHelp->append('Enter as a participant in the running game of UNO.');
 		CommandHandler::fromContainer($container)
 			->registerCommand('enter', [$this, 'enterCommand'], $commandHelp, 0, 0);
 
 		$commandHelp = new CommandHelp();
-		$commandHelp->addPage('UNO: Pass your current turn.');
+		$commandHelp->append('UNO: Pass your current turn.');
 		CommandHandler::fromContainer($container)
 			->registerCommand('pass', [$this, 'passCommand'], $commandHelp, 0, 0);
 
 		$commandHelp = new CommandHelp();
-		$commandHelp->addPage('UNO: Play a card. Usage: play [card]');
+		$commandHelp->append('UNO: Play a card. Usage: play [card]');
 		CommandHandler::fromContainer($container)
 			->registerCommand('play', [$this, 'playCommand'], $commandHelp, 1, 1);
 
 		$commandHelp = new CommandHelp();
-		$commandHelp->addPage('UNO: Choose a color. Usage: color [color]');
+		$commandHelp->append('UNO: Choose a color. Usage: color [color]');
 		CommandHandler::fromContainer($container)
 			->registerCommand('color', [$this, 'colorCommand'], $commandHelp, 1, 1);
 
 		$commandHelp = new CommandHelp();
-		$commandHelp->addPage('UNO: Draw a card from the stack.');
+		$commandHelp->append('UNO: Draw a card from the stack.');
 		CommandHandler::fromContainer($container)
 			->registerCommand('draw', [$this, 'drawCommand'], $commandHelp, 0, 0);
 
 		$commandHelp = new CommandHelp();
-		$commandHelp->addPage('UNO: Show your current cards.');
+		$commandHelp->append('UNO: Show your current cards.');
 		CommandHandler::fromContainer($container)
 			->registerCommand('cards', [$this, 'cardsCommand'], $commandHelp, 0, 0);
 
 		$commandHelp = new CommandHelp();
-		$commandHelp->addPage('UNO: Toggle the displaying of colors in your private messages for the current session.');
+		$commandHelp->append('UNO: Toggle the displaying of colors in your private messages for the current session.');
 		CommandHandler::fromContainer($container)
 			->registerCommand('togglecolors', [$this, 'togglecolorsCommand'], $commandHelp, 0, 0);
 
 		$commandHelp = new CommandHelp();
-		$commandHelp->addPage('UNO: Show all available valid moves.');
+		$commandHelp->append('UNO: Show all available valid moves.');
 		CommandHandler::fromContainer($container)
 			->registerCommand('validmoves', [$this, 'validmovesCommand'], $commandHelp, 0, 0);
 
 		$commandHelp = new CommandHelp();
-		$commandHelp->addPage('UNO: List basic game rules.');
+		$commandHelp->append('UNO: List basic game rules.');
 		CommandHandler::fromContainer($container)
 			->registerCommand('unorules', [$this, 'unorulesCommand'], $commandHelp, 0, 0);
 

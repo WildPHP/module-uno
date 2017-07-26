@@ -98,6 +98,7 @@ class Deck extends Collection
 	{
 		return $this->find(function (Card $deckCard) use ($card)
 		{
+			/** @noinspection PhpNonStrictObjectEqualityInspection */
 			return $deckCard == $card;
 		});
 	}
@@ -111,6 +112,7 @@ class Deck extends Collection
 	{
 		return $this->remove(function (Card $card1) use ($card)
 		{
+			/** @noinspection PhpNonStrictObjectEqualityInspection */
 			return $card1 == $card;
 		});
 	}

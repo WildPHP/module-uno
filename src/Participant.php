@@ -23,6 +23,12 @@ class Participant
 	 */
 	protected $deck = null;
 
+	/**
+	 * Participant constructor.
+	 *
+	 * @param User $user
+	 * @param Deck $deck
+	 */
 	public function __construct(User $user, Deck $deck)
 	{
 		$this->setUserObject($user);

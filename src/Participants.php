@@ -6,13 +6,6 @@
  * See the LICENSE file for more information.
  */
 
-/**
- * Created by PhpStorm.
- * User: rick2
- * Date: 26-5-2017
- * Time: 21:27
- */
-
 namespace WildPHP\Modules\Uno;
 
 
@@ -20,11 +13,17 @@ use Collections\Collection;
 
 class Participants extends Collection
 {
+	/**
+	 * Participants constructor.
+	 */
 	public function __construct()
 	{
 		parent::__construct(Participant::class);
 	}
 
+	/**
+	 * @return array
+	 */
 	public function &toArray()
 	{
 		return $this->items;

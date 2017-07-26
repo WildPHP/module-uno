@@ -15,6 +15,9 @@ class Deck extends Collection
 {
 	protected $allowColors = true;
 
+	/**
+	 * Deck constructor.
+	 */
 	public function __construct()
 	{
 		parent::__construct(Card::class);

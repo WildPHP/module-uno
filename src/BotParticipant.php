@@ -6,13 +6,6 @@
  * See the LICENSE file for more information.
  */
 
-/**
- * Created by PhpStorm.
- * User: rick2
- * Date: 26-5-2017
- * Time: 21:13
- */
-
 namespace WildPHP\Modules\Uno;
 
 
@@ -24,6 +17,13 @@ class BotParticipant extends Participant
 {
 	use ContainerTrait;
 
+	/**
+	 * BotParticipant constructor.
+	 *
+	 * @param User $user
+	 * @param Deck $deck
+	 * @param ComponentContainer $container
+	 */
 	public function __construct(User $user, Deck $deck, ComponentContainer $container)
 	{
 		parent::__construct($user, $deck);

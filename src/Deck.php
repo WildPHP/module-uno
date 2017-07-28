@@ -9,7 +9,8 @@
 namespace WildPHP\Modules\Uno;
 
 
-use Collections\Collection;
+use ValidationClosures\Types;
+use Yoshi2889\Collections\Collection;
 
 class Deck extends Collection
 {
@@ -20,18 +21,20 @@ class Deck extends Collection
 	 */
 	public function __construct()
 	{
-		parent::__construct(Card::class);
+		parent::__construct(Types::instanceof(Card::class));
 	}
 
 	public function sortCards()
 	{
-		$this->sort(function (Card $card1, Card $card2)
+		$array = $this->getArrayCopy();
+		usort($array, function (Card $card1, Card $card2)
 		{
 			if ($card1->toString() == $card2->toString())
 				return 0;
 
 			return ($card1->toString() < $card2->toString()) ? -1 : 1;
 		});
+		$this->exchangeArray($array);
 	}
 
 	/**
@@ -39,7 +42,7 @@ class Deck extends Collection
 	 */
 	public function allToString(): array
 	{
-		$cards = $this->toArray();
+		$cards = (array) $this;
 		/** @var Card $card */
 		foreach ($cards as $key => $card)
 		{
@@ -53,7 +56,7 @@ class Deck extends Collection
 	 */
 	public function allToHumanString(): array
 	{
-		$cards = $this->toArray();
+		$cards = (array) $this;
 		/** @var Card $card */
 		foreach ($cards as $key => $card)
 		{
@@ -67,7 +70,7 @@ class Deck extends Collection
 	 */
 	public function formatAll()
 	{
-		$cards = $this->toArray();
+		$cards = (array) $this;
 		/** @var Card $card */
 		foreach ($cards as $key => $card)
 		{
@@ -83,10 +86,15 @@ class Deck extends Collection
 	 */
 	public function findCardByString(string $card)
 	{
-		return $this->find(function (Card $deckCard) use ($card)
+		$filtered = $this->filter(function (Card $deckCard) use ($card)
 		{
 			return $deckCard->toString() == $card;
 		});
+		
+		if (!empty((array) $filtered))
+			return reset($filtered);
+		
+		return false;
 	}
 
 	/**
@@ -96,11 +104,7 @@ class Deck extends Collection
 	 */
 	public function findCard(Card $card)
 	{
-		return $this->find(function (Card $deckCard) use ($card)
-		{
-			/** @noinspection PhpNonStrictObjectEqualityInspection */
-			return $deckCard == $card;
-		});
+		return $this->findCardByString($card->toString());
 	}
 
 	/**
@@ -110,7 +114,7 @@ class Deck extends Collection
 	 */
 	public function removeCard(Card $card)
 	{
-		return $this->remove(function (Card $card1) use ($card)
+		return $this->removeAll(function (Card $card1) use ($card)
 		{
 			/** @noinspection PhpNonStrictObjectEqualityInspection */
 			return $card1 == $card;

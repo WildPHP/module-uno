@@ -128,7 +128,8 @@ class Uno extends BaseModule
 	public function notifyNewCards(Participant $participant, array $cards)
 	{
 		$diff = new Deck();
-		$diff->addRange($cards);
+		foreach ($cards as $card)
+			$diff->append($card);
 		$diff->sortCards();
 		$nickname = $participant->getUserObject()->getNickname();
 
@@ -172,7 +173,7 @@ class Uno extends BaseModule
 	{
 		$game->setCurrentPlayerHasDrawn(false);
 		$game->setPlayerMustChooseColor(false);
-		$nextParticipant = $game->advance();
+		$nextParticipant = $game->getNextPlayer();
 		$ownNickname = Configuration::fromContainer($this->getContainer())['currentNickname'];
 		if ($nextParticipant->getUserObject()->getNickname() == $ownNickname)
 			$this->playAutomaticCard($game, $source);
@@ -258,22 +259,22 @@ class Uno extends BaseModule
 		{
 			$deck = $participant->getDeck();
 
-			$count['g'] = count($deck->findAll(function (Card $card)
+			$count['g'] = count($deck->filter(function (Card $card)
 			{
 				return $card->getColor() == CardTypes::GREEN;
 			}));
 
-			$count['b'] = count($deck->findAll(function (Card $card)
+			$count['b'] = count($deck->filter(function (Card $card)
 			{
 				return $card->getColor() == CardTypes::BLUE;
 			}));
 
-			$count['y'] = count($deck->findAll(function (Card $card)
+			$count['y'] = count($deck->filter(function (Card $card)
 			{
 				return $card->getColor() == CardTypes::YELLOW;
 			}));
 
-			$count['r'] = count($deck->findAll(function (Card $card)
+			$count['r'] = count($deck->filter(function (Card $card)
 			{
 				return $card->getColor() == CardTypes::RED;
 			}));
@@ -299,7 +300,7 @@ class Uno extends BaseModule
 	 */
 	public function announceOrder(Game $game, Channel $source)
 	{
-		$participants = $game->getParticipants()->toArray();
+		$participants = (array) $game->getParticipants();
 
 		if ($game->isReversed())
 			$participants = array_reverse($participants);
@@ -381,7 +382,7 @@ class Uno extends BaseModule
 
 		$game->setStarted(true);
 		$game->setStartTime(time());
-		$game->rewind();
+		$game->getPreviousPlayer();
 		$game->setLastCard($game->drawRandomCard(1, true)[0]);
 
 		Queue::fromContainer($this->getContainer())
@@ -690,7 +691,8 @@ class Uno extends BaseModule
 		if ($participant->getDeck()->colorsAllowed())
 		{
 			$deck = new Deck();
-			$deck->addRange($validCards);
+			foreach ($validCards as $validCard)
+				$deck->append($validCard);
 			$validCards = $deck->formatAll();
 		}
 
@@ -785,12 +787,12 @@ class Uno extends BaseModule
 		Queue::fromContainer($this->getContainer())
 			->privmsg($channel->getName(), $message);
 
-		if (count($deck->toArray()) == 0)
+		if (count($deck) == 0)
 		{
 			Queue::fromContainer($this->getContainer())
 				->privmsg($channel->getName(), $nickname . ' has played their last card and won! GG!');
 
-			$participants = $game->getParticipants()->toArray();
+			$participants = $game->getParticipants();
 			/** @var Participant $participant */
 			foreach ($participants as $participant)
 			{
@@ -809,7 +811,7 @@ class Uno extends BaseModule
 		if ($reverseState != $game->isReversed())
 			$this->announceOrder($game, $channel);
 
-		if (count($deck->toArray()) == 1)
+		if (count($deck) == 1)
 			Queue::fromContainer($this->getContainer())
 				->privmsg($channel->getName(), $participant->getUserObject()->getNickname() . ' has UNO!');
 

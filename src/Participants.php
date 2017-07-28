@@ -9,7 +9,8 @@
 namespace WildPHP\Modules\Uno;
 
 
-use Collections\Collection;
+use ValidationClosures\Types;
+use Yoshi2889\Collections\Collection;
 
 class Participants extends Collection
 {
@@ -18,14 +19,6 @@ class Participants extends Collection
 	 */
 	public function __construct()
 	{
-		parent::__construct(Participant::class);
-	}
-
-	/**
-	 * @return array
-	 */
-	public function &toArray()
-	{
-		return $this->items;
+		parent::__construct(Types::instanceof(Participant::class));
 	}
 }

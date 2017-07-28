@@ -8,7 +8,6 @@
 
 namespace WildPHP\Modules\Uno;
 
-use Collections\Collection;
 use WildPHP\Core\ComponentContainer;
 use WildPHP\Core\EventEmitter;
 use WildPHP\Core\Logger\Logger;
@@ -95,7 +94,7 @@ class Game
 			$type = $validCard[1] ?? '';
 
 			$cardObject = new Card($color, $type);
-			$this->availableCards->add($cardObject);
+			$this->availableCards->append($cardObject);
 		}
 	}
 
@@ -112,7 +111,7 @@ class Game
 		$deck = new Deck();
 		$participantObject = new Participant($user, $deck);
 		$this->populateDeckForParticipant($participantObject,10);
-		$this->participants->add($participantObject);
+		$this->participants->append($participantObject);
 		return $participantObject;
 	}
 
@@ -123,10 +122,15 @@ class Game
 	 */
 	public function findParticipantForUser(User $user)
 	{
-		return $this->participants->find(function (Participant $participant) use ($user)
+		$filtered = $this->participants->filter(function (Participant $participant) use ($user)
 		{
 			return $participant->getUserObject() === $user;
 		});
+		
+		if (!empty($filtered))
+			return reset($filtered);
+		
+		return false;
 	}
 
 	/**
@@ -146,10 +150,14 @@ class Game
 	 */
 	public function findAvailableCard(string $card)
 	{
-		return $this->availableCards->find(function (Card $availableCard) use ($card)
+		$filtered = $this->availableCards->filter(function (Card $availableCard) use ($card)
 		{
 			return $availableCard->toString() == $card;
 		});
+		if (!empty((array) $filtered))
+			return reset($filtered);
+		
+		return false;
 	}
 
 	/**
@@ -182,7 +190,7 @@ class Game
 					$message = 'The order of players has been reversed';
 				else
 				{
-					$this->advance();
+					$this->getNextPlayer();
 					$message = $nextParticipant->getUserObject()
 							->getNickname() . ' skipped a turn (two-player game)';
 				}
@@ -196,11 +204,11 @@ class Game
 				$cards = $this->populateDeckForParticipant($nextParticipant, $amount);
 				$message = $nextParticipant->getUserObject()->getNickname() . ' drew ' . $amount . ' cards and skipped a turn';
 				EventEmitter::fromContainer($this->getContainer())->emit('uno.deck.populate', [$nextParticipant, $cards]);
-				$this->advance();
+				$this->getNextPlayer();
 				break;
 
 			case 's':
-				$this->advance();
+				$this->getNextPlayer();
 				$message = $nextParticipant->getUserObject()->getNickname() . ' skipped a turn';
 				break;
 		}
@@ -220,7 +228,7 @@ class Game
 	 */
 	public function drawRandomCard($amount = 1, $excludeWild = false): array
 	{
-		$available = $this->availableCards->toArray();
+		$available = (array) $this->availableCards;
 		if ($amount > count($available))
 			$amount = count($available);
 
@@ -270,7 +278,7 @@ class Game
 
 		$cards = [];
 		/** @var Card $deckCard */
-		foreach ($deck->toArray() as $deckCard)
+		foreach ((array) $deck as $deckCard)
 		{
 			if (!$deckCard->compatible($this->getLastCard()))
 				continue;
@@ -290,7 +298,8 @@ class Game
 	{
 		$deck = $participant->getDeck();
 		$cards = $this->drawRandomCard($amount);
-		$deck->addRange($cards);
+		foreach ($cards as $card)
+			$deck->append($card);
 		return $cards;
 	}
 
@@ -363,7 +372,7 @@ class Game
 	 */
 	public function getCurrentPlayer(): Participant
 	{
-		return current($this->getParticipants()->toArray());
+		return current($this->getParticipants());
 	}
 
 	/**
@@ -371,7 +380,7 @@ class Game
 	 */
 	public function getNextPlayer(): Participant
 	{
-		$participants = $this->getParticipants()->toArray();
+		$participants = $this->getParticipants();
 
 		if (!$this->isReversed())
 		{
@@ -393,51 +402,7 @@ class Game
 	 */
 	public function getPreviousPlayer(): Participant
 	{
-		$participants = $this->getParticipants()->toArray();
-
-		if ($this->isReversed())
-		{
-			$result = next($participants);
-			if (!$result)
-				$result = reset($participants);
-		}
-		else
-		{
-			$result = prev($participants);
-			if (!$result)
-				$result = end($participants);
-		}
-		return $result;
-	}
-
-	/**
-	 * @return Participant
-	 */
-	public function advance(): Participant
-	{
-		$participants = &$this->getParticipants()->toArray();
-
-		if (!$this->isReversed())
-		{
-			$result = next($participants);
-			if (!$result)
-				$result = reset($participants);
-		}
-		else
-		{
-			$result = prev($participants);
-			if (!$result)
-				$result = end($participants);
-		}
-		return $result;
-	}
-
-	/**
-	 * @return Participant
-	 */
-	public function rewind(): Participant
-	{
-		$participants = &$this->getParticipants()->toArray();
+		$participants = $this->getParticipants();
 
 		if ($this->isReversed())
 		{
@@ -487,7 +452,7 @@ class Game
 	}
 
 	/**
-	 * @return Collection
+	 * @return Participants
 	 */
 	public function getParticipants()
 	{

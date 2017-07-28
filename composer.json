@@ -9,7 +9,7 @@
         }
     ],
     "require": {
-        "danielgsims/php-collections": "^1"
+        "yoshi2889/collections": "^0.1"
     },
     "autoload": {
         "psr-4": {

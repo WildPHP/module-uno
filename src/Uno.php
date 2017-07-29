@@ -295,10 +295,10 @@ class Uno extends BaseModule
 		{
 			$deck = $participant->getDeck();
 
-			$count['g'] = count($deck->filter(DeckFilters::color(CardTypes::GREEN)));
-			$count['b'] = count($deck->filter(DeckFilters::color(CardTypes::BLUE)));
-			$count['y'] = count($deck->filter(DeckFilters::color(CardTypes::YELLOW)));
-			$count['r'] = count($deck->filter(DeckFilters::color(CardTypes::RED)));
+			$count['g'] = count((array) $deck->filter(DeckFilters::color(CardTypes::GREEN)));
+			$count['b'] = count((array) $deck->filter(DeckFilters::color(CardTypes::BLUE)));
+			$count['y'] = count((array) $deck->filter(DeckFilters::color(CardTypes::YELLOW)));
+			$count['r'] = count((array) $deck->filter(DeckFilters::color(CardTypes::RED)));
 
 			$count = array_flip($count);
 			ksort($count);
@@ -875,6 +875,7 @@ class Uno extends BaseModule
 	 */
 	public function stopGame(Channel $source)
 	{
+		$this->resetTimers();
 		$this->games[$source->getName()]->stop();
 		unset($this->games[$source->getName()]);
 	}

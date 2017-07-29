@@ -90,8 +90,11 @@ class Deck extends Collection
 		/** @var Card $card */
 		foreach ($cards as $key => $card)
 		{
-			if ($card == $match)
-				unset($cards[$key]);
+			if ($card != $match)
+				continue;
+			
+			unset($cards[$key]);
+			break;
 		}
 		$this->exchangeArray($cards);
 	}

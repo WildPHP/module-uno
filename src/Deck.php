@@ -18,10 +18,12 @@ class Deck extends Collection
 
 	/**
 	 * Deck constructor.
+	 *
+	 * @param array $initialValues
 	 */
-	public function __construct()
+	public function __construct(array $initialValues = [])
 	{
-		parent::__construct(Types::instanceof(Card::class));
+		parent::__construct(Types::instanceof(Card::class), $initialValues);
 	}
 
 	public function sortCards()
@@ -78,47 +80,19 @@ class Deck extends Collection
 		}
 		return $cards;
 	}
-
-	/**
-	 * @param string $card
-	 *
-	 * @return Card|false
-	 */
-	public function findCardByString(string $card)
-	{
-		$filtered = $this->filter(function (Card $deckCard) use ($card)
-		{
-			return $deckCard->toString() == $card;
-		});
-		
-		if (!empty((array) $filtered))
-			return reset($filtered);
-		
-		return false;
-	}
-
+	
 	/**
 	 * @param Card $card
 	 *
-	 * @return Card|false
+	 * @return Deck
 	 */
-	public function findCard(Card $card)
+	public function getValidCards(Card $card): Deck
 	{
-		return $this->findCardByString($card->toString());
-	}
-
-	/**
-	 * @param Card $card
-	 *
-	 * @return bool
-	 */
-	public function removeCard(Card $card)
-	{
-		return $this->removeAll(function (Card $card1) use ($card)
+		$collection = $this->filter(function (Card $deckCard) use ($card)
 		{
-			/** @noinspection PhpNonStrictObjectEqualityInspection */
-			return $card1 == $card;
+			return $deckCard->compatible($card);
 		});
+		return new static((array) $collection);
 	}
 
 	/**

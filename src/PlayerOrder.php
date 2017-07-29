@@ -29,7 +29,6 @@ class PlayerOrder
 	public function __construct(Participants $participants)
 	{
 		$this->participants = $participants->getArrayCopy();
-		var_dump($this->participants);
 	}
 
 	/**

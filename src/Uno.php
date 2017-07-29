@@ -373,7 +373,6 @@ class Uno extends BaseModule
 		$botObject = $source->getUserCollection()->findByNickname($ownNickname);
 		$botPlayer = $game->createParticipant($botObject);
 		Queue::fromContainer($this->getContainer())->privmsg($source->getName(), 'I also entered the game. Brace yourself ;)');
-		Queue::fromContainer($this->getContainer())->privmsg($source->getName(), 'My cards: ' . implode(', ', $botPlayer->getDeck()->formatAll()));
 		
 	}
 

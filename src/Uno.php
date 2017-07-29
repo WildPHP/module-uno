@@ -37,6 +37,11 @@ class Uno extends BaseModule
 	private $taskController;
 
 	/**
+	 * @var HighScores
+	 */
+	private $highScores;
+
+	/**
 	 * Uno constructor.
 	 *
 	 * @param ComponentContainer $container
@@ -108,6 +113,11 @@ class Uno extends BaseModule
 		CommandHandler::fromContainer($container)
 			->registerCommand('unorules', [$this, 'unorulesCommand'], $commandHelp, 0, 0);
 
+		$commandHelp = new CommandHelp();
+		$commandHelp->append('UNO: Show high scores.');
+		CommandHandler::fromContainer($container)
+			->registerCommand('unohs', [$this, 'unohsCommand'], $commandHelp, 0, 0);
+
 		CommandHandler::fromContainer($container)
 			->alias('play', 'pl');
 		CommandHandler::fromContainer($container)
@@ -127,6 +137,7 @@ class Uno extends BaseModule
 
 		$this->setContainer($container);
 		$this->taskController = new TaskController($container->getLoop());
+		$this->highScores = new HighScores();
 	}
 
 	/**
@@ -838,15 +849,21 @@ class Uno extends BaseModule
 
 			$participants = $game->getParticipants();
 			/** @var Participant $participant */
+			$points = 0;
 			foreach ($participants as $participant)
 			{
 				$deck = $participant->getDeck();
+				$points += $this->highScores->calculatePoints($deck);
 				$cards = $deck->formatAll();
 				if (empty($cards))
 					continue;
 				Queue::fromContainer($this->getContainer())
 					->privmsg($channel->getName(), $participant->getUserObject()->getNickname() . ' ended with these cards: ' . implode(', ', $cards));
 			}
+			$isHigher = $this->highScores->updateHighScore($nickname, $points);
+			Queue::fromContainer($this->getContainer())
+				->privmsg($channel->getName(), 'Altogether, ' . $nickname . ' has earned ' . $points . ' points this match.' . ($isHigher ? ' New high score!' : ''));
+			
 			$this->stopGame($channel);
 
 			return false;
@@ -958,6 +975,38 @@ class Uno extends BaseModule
 			->privmsg($source->getName(), 'A color was picked!');
 		
 		$this->advanceGame($game, $source);
+	}
+
+	/**
+	 * @param Channel $source
+	 * @param User $user
+	 * @param array $args
+	 * @param ComponentContainer $container
+	 */
+	public function unohsCommand(Channel $source, User $user, array $args, ComponentContainer $container)
+	{
+		$highScores = $this->highScores->getHighScores();
+		
+		if (empty($highScores))
+		{
+			Queue::fromContainer($container)->privmsg($source->getName(), 'There are no registered high scores.');
+			return;
+		}
+		
+		arsort($highScores);
+		$highScores = array_slice($highScores, 0, 5);
+
+		$msg = 'Top 5 high scores: ';
+		
+		$i = 1;
+		$scoreStrings = [];
+		foreach ($highScores as $nickname => $points)
+		{
+			$scoreStrings[] = $i . '. ' . TextFormatter::bold($nickname) . ' (' . $points . ' points)';
+			$i++;
+		}
+		$msg .= implode(' - ', $scoreStrings);
+		Queue::fromContainer($container)->privmsg($source->getName(), $msg);
 	}
 
 	/**

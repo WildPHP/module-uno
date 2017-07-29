@@ -14,7 +14,7 @@ class DeckFilters
 	/**
 	 * @return \Closure
 	 */
-	public function wild(): \Closure
+	public static function wild(): \Closure
 	{
 		return function (Card $card)
 		{

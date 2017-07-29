@@ -806,7 +806,7 @@ class Uno extends BaseModule
 		
 		if ($card->toString() == 'wd')
 		{
-			$cardsNoWD = $currentParticipant->getDeck()->filter(Utils::invert(DeckFilters::only($card)));
+			$cardsNoWD = $currentParticipant->getDeck()->filter(Utils::invert(DeckFilters::wild()));
 			
 			if (!empty((array) ($cardsNoWD)))
 			{

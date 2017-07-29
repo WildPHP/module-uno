@@ -80,6 +80,21 @@ class Deck extends Collection
 		}
 		return $cards;
 	}
+
+	/**
+	 * @param Card $match
+	 */
+	public function removeFirst(Card $match)
+	{
+		$cards = (array) $this;
+		/** @var Card $card */
+		foreach ($cards as $key => $card)
+		{
+			if ($card == $match)
+				unset($cards[$key]);
+		}
+		$this->exchangeArray($cards);
+	}
 	
 	/**
 	 * @param Card $card

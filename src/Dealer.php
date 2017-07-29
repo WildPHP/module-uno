@@ -61,7 +61,7 @@ class Dealer
 		foreach ($cardKeys as $cardKey)
 		{
 			$card = $available[$cardKey];
-			$this->availableCards->removeAll($card);
+			$this->availableCards->removeFirst($card);
 			$cards[] = $card;
 		}
 		return $cards;

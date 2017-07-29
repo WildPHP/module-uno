@@ -129,7 +129,7 @@ class Game
 		$nextParticipant = $this->playerOrder->getNext();
 		
 		$this->lastCard = $card;
-		$deck->removeAll($card);
+		$deck->removeFirst($card);
 		$color = $card->getColor();
 		$type = $card->getType();
 

@@ -34,4 +34,17 @@ class DeckFilters
 			return $card->getColor() != $color;
 		};
 	}
+
+	/**
+	 * @param Card $card
+	 *
+	 * @return \Closure
+	 */
+	public static function only(Card $card)
+	{
+		return function (Card $card1) use ($card)
+		{
+			return $card1 == $card;
+		};
+	}
 }

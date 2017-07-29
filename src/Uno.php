@@ -8,6 +8,7 @@
 
 namespace WildPHP\Modules\Uno;
 
+use ValidationClosures\Utils;
 use WildPHP\Core\Channels\Channel;
 use WildPHP\Core\Commands\CommandHandler;
 use WildPHP\Core\Commands\CommandHelp;
@@ -801,6 +802,20 @@ class Uno extends BaseModule
 			$this->setTimer($game, $source);
 
 			return;
+		}
+		
+		if ($card->toString() == 'wd')
+		{
+			$cardsNoWD = $currentParticipant->getDeck()->filter(Utils::invert(DeckFilters::only($card)));
+			
+			if (!empty((array) ($cardsNoWD)))
+			{
+				Queue::fromContainer($container)
+					->notice($user->getNickname(), 'You have other cards you can play; play those before playing a Wild Draw Four.');
+				$this->setTimer($game, $source);
+
+				return;
+			}
 		}
 
 		if ($this->playCardInGame($game, $card, $currentParticipant, $source))

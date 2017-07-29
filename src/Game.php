@@ -79,6 +79,12 @@ class Game
 		Logger::fromContainer($this->getContainer())->debug('[UNO] Game started up');
 	}
 
+	public function stop()
+	{
+		$this->started = false;
+		Logger::fromContainer($this->getContainer())->debug('[UNO] Game stopped');
+	}
+
 	/**
 	 * @return Participant
 	 */

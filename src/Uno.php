@@ -371,7 +371,7 @@ class Uno extends BaseModule
 	{
 		$ownNickname = Configuration::fromContainer($this->getContainer())['currentNickname'];
 		$botObject = $source->getUserCollection()->findByNickname($ownNickname);
-		$botPlayer = $game->createParticipant($botObject);
+		$game->createParticipant($botObject);
 		Queue::fromContainer($this->getContainer())->privmsg($source->getName(), 'I also entered the game. Brace yourself ;)');
 		
 	}
@@ -393,6 +393,7 @@ class Uno extends BaseModule
 			return;
 		}
 
+		$game->stop();
 		unset($this->games[$source->getName()]);
 		Queue::fromContainer($this->getContainer())
 			->privmsg($source->getName(), 'Game stopped.');
@@ -805,6 +806,7 @@ class Uno extends BaseModule
 	 */
 	public function stopGame(Channel $source)
 	{
+		$this->games[$source->getName()]->stop();
 		unset($this->games[$source->getName()]);
 	}
 

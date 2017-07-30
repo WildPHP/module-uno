@@ -44,7 +44,7 @@ class TimeoutController
 	 */
 	public function setTimer(Game $game, Channel $source)
 	{
-		$this->taskController->add(new CallbackTask($this->automaticPlayCallback, 1, [$game, $source]));
+		$this->taskController->add(new CallbackTask($this->automaticPlayCallback, 120, [$game, $source]));
 	}
 
 	public function resetTimers()

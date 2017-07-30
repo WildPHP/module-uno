@@ -68,6 +68,42 @@ class Dealer
 	}
 
 	/**
+	 * @param Participants $participants
+	 */
+	public function repile(Participants $participants)
+	{
+		$cardsInDecks = [];
+		/** @var Participant $participant */
+		foreach ((array) $participants as $participant)
+		{
+			$cardsInDecks += $participant->getDeck()->allToString();
+		}
+		
+		$lookup = array_count_values($cardsInDecks);
+		foreach (self::$validCards as $card)
+		{
+			if ($lookup[$card] ?? 0)
+			{
+				$lookup[$card]--;
+			}
+			else
+			{
+				$this->availableCards->append(Card::fromString($card));
+			}
+		}
+	}
+
+	/**
+	 * @param int $amount
+	 *
+	 * @return bool
+	 */
+	public function canDraw(int $amount): bool
+	{
+		return count($this->availableCards) >= $amount;
+	}
+
+	/**
 	 * @param Deck $deck
 	 * @param int $amount
 	 *

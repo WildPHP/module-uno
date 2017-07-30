@@ -56,18 +56,25 @@ class Game
 	 * @var Dealer
 	 */
 	protected $dealer;
+	
+	/**
+	 * @var TimeoutController
+	 */
+	private $timeoutController;
 
 	/**
 	 * Game constructor.
 	 *
 	 * @param ComponentContainer $container
+	 * @param TimeoutController $timeoutController
 	 */
-	public function __construct(ComponentContainer $container)
+	public function __construct(ComponentContainer $container, TimeoutController $timeoutController)
 	{
 		$this->setContainer($container);
 
 		$this->participants = new Participants();
 		$this->dealer = new Dealer();
+		$this->timeoutController = $timeoutController;
 	}
 
 	public function start()
@@ -81,6 +88,7 @@ class Game
 
 	public function stop()
 	{
+		$this->getTimeoutController()->resetTimers();
 		$this->started = false;
 		Logger::fromContainer($this->getContainer())->debug('[UNO] Game stopped');
 	}
@@ -158,9 +166,15 @@ class Game
 
 			case CardTypes::DRAW:
 				$amount = $color == CardTypes::WILD ? 4 : 2;
+				$message = sprintf(GameResponses::DRAW_PLAYED, '%s', $amount);
+
+				if (!$this->getDealer()->canDraw(1))
+				{
+					$this->getDealer()->repile($this->getParticipants());
+					$message = sprintf(GameResponses::DRAW_PLAYED_REPILE, '%s', $amount);
+				}
 
 				$cards = $this->dealer->populate($nextParticipant->getDeck(), $amount);
-				$message = sprintf(GameResponses::DRAW_PLAYED, '%s', $amount);
 				
 				EventEmitter::fromContainer($this->getContainer())->emit('uno.deck.populate', [$nextParticipant, $cards]);
 				
@@ -246,5 +260,13 @@ class Game
 	public function getDealer(): Dealer
 	{
 		return $this->dealer;
+	}
+
+	/**
+	 * @return TimeoutController
+	 */
+	public function getTimeoutController(): TimeoutController
+	{
+		return $this->timeoutController;
 	}
 }

@@ -20,8 +20,6 @@ use WildPHP\Core\ContainerTrait;
 use WildPHP\Core\EventEmitter;
 use WildPHP\Core\Modules\BaseModule;
 use WildPHP\Core\Users\User;
-use Yoshi2889\Tasks\CallbackTask;
-use Yoshi2889\Tasks\TaskController;
 
 class Uno extends BaseModule
 {
@@ -31,11 +29,6 @@ class Uno extends BaseModule
 	 * @var array
 	 */
 	protected $games = [];
-
-	/**
-	 * @var TaskController
-	 */
-	private $taskController;
 
 	/**
 	 * @var HighScores
@@ -137,7 +130,6 @@ class Uno extends BaseModule
 		EventEmitter::fromContainer($container)->on('uno.deck.populate', [$this, 'notifyNewCards']);
 
 		$this->setContainer($container);
-		$this->taskController = new TaskController($container->getLoop());
 		$this->highScores = new HighScores();
 	}
 
@@ -204,24 +196,10 @@ class Uno extends BaseModule
 		else
 		{
 			$this->noticeCards($nextParticipant);
-			$this->setTimer($game, $source);
+			$game->getTimeoutController()->setTimer($game, $source);
 		}
 		
 		return $nextParticipant;
-	}
-
-	/**
-	 * @param Game $game
-	 * @param Channel $source
-	 */
-	protected function setTimer(Game $game, Channel $source)
-	{
-		$this->taskController->add(new CallbackTask([$this, 'playAutomaticCardAndNotice'], 120, [$game, $source]));
-	}
-	
-	protected function resetTimers()
-	{
-		$this->taskController->removeAll();
 	}
 
 	/**
@@ -249,7 +227,7 @@ class Uno extends BaseModule
 	 */
 	public function playAutomaticCardAndNotice(Game $game, Channel $source)
 	{
-		$this->resetTimers();
+		$game->getTimeoutController()->resetTimers();
 		$currentParticipant = $game->getPlayerOrder()->getCurrent();
 		Queue::fromContainer($this->getContainer())->privmsg($source->getName(), 
 			$currentParticipant->getUserObject()->getNickname() . ' did not take action in the last 2 minutes, autoplaying...');
@@ -263,7 +241,7 @@ class Uno extends BaseModule
 	 */
 	public function playAutomaticCard(Game $game, Channel $source)
 	{
-		$this->resetTimers();
+		$game->getTimeoutController()->resetTimers();
 		
 		$participant = $game->getPlayerOrder()->getCurrent();
 		$validCards = $participant->getDeck()->getValidCards($game->getLastCard());
@@ -287,10 +265,9 @@ class Uno extends BaseModule
 		// Sort cards from lowest to highest.
 		$validCards->sortCards();
 		
-		$withoutWildsOrOtherColors = $validCards->filter(DeckFilters::color($game->getLastCard()->getColor()));
-		if (!empty((array) $withoutWildsOrOtherColors))
+		$withoutWildsOrOtherColors = $validCards->filter(DeckFilters::color($game->getLastCard()->getColor()))->getArrayCopy();
+		if (!empty($withoutWildsOrOtherColors))
 		{
-			$withoutWildsOrOtherColors = (array) $withoutWildsOrOtherColors;
 			shuffle($withoutWildsOrOtherColors);
 			$validCards = new Deck($withoutWildsOrOtherColors);
 		}
@@ -368,8 +345,8 @@ class Uno extends BaseModule
 
 			return;
 		}
-
-		$game = new Game($container);
+		
+		$game = new Game($container, new TimeoutController([$this, 'playAutomaticCardAndNotice'], $this->getContainer()->getLoop()));
 		$participant = $game->createParticipant($user);
 
 		$prefix = Configuration::fromContainer($container)['prefix'];
@@ -446,7 +423,7 @@ class Uno extends BaseModule
 			return;
 		}
 
-		$this->resetTimers();
+		$game->getTimeoutController()->resetTimers();
 		$game->stop();
 		
 		unset($this->games[$source->getName()]);
@@ -549,8 +526,8 @@ class Uno extends BaseModule
 		
 		if ($participant == $game->getPlayerOrder()->getCurrent())
 		{
-			$this->resetTimers();
-			$this->setTimer($game, $source);
+			$game->getTimeoutController()->resetTimers();
+			$game->getTimeoutController()->setTimer($game, $source);
 		}
 		
 		$this->noticeCards($participant);
@@ -592,13 +569,13 @@ class Uno extends BaseModule
 			return;
 		}
 		
-		$this->resetTimers();
+		$game->getTimeoutController()->resetTimers();
 
 		if (!$game->currentPlayerHasDrawn())
 		{
 			Queue::fromContainer($container)
 				->privmsg($source->getName(), $user->getNickname() . ': You need to draw a card first.');
-			$this->setTimer($game, $source);
+			$game->getTimeoutController()->setTimer($game, $source);
 
 			return;
 		}
@@ -645,13 +622,13 @@ class Uno extends BaseModule
 			return;
 		}
 		
-		$this->resetTimers();
+		$game->getTimeoutController()->resetTimers();
 
 		if ($game->currentPlayerHasDrawn())
 		{
 			Queue::fromContainer($container)
 				->privmsg($source->getName(), $user->getNickname() . ': You cannot draw a card twice.');
-			$this->setTimer($game, $source);
+			$game->getTimeoutController()->setTimer($game, $source);
 
 			return;
 		}
@@ -670,6 +647,14 @@ class Uno extends BaseModule
 	public function drawCardInGame(Game $game, Channel $source, bool $announce = true): array
 	{
 		$participant = $game->getPlayerOrder()->getCurrent();
+		
+		if (!$game->getDealer()->canDraw(1))
+		{
+			$game->getDealer()->repile($game->getParticipants());
+			Queue::fromContainer($this->getContainer())
+				->privmsg($source->getName(), 'No more cards in deck; all previously played cards repiled.');
+		}
+		
 		$cards = $game->getDealer()->populate($participant->getDeck(), 1);
 
 		if ($announce)
@@ -717,8 +702,8 @@ class Uno extends BaseModule
 
 		if ($participant == $game->getPlayerOrder()->getCurrent())
 		{
-			$this->resetTimers();
-			$this->setTimer($game, $source);
+			$game->getTimeoutController()->resetTimers();
+			$game->getTimeoutController()->setTimer($game, $source);
 		}
 
 		if ($participant->getDeck()->colorsAllowed())
@@ -782,7 +767,7 @@ class Uno extends BaseModule
 			return;
 		}
 		
-		$this->resetTimers();
+		$game->getTimeoutController()->resetTimers();
 
 		$card = strtolower($args[0]);
 		$card = Card::fromString($card);
@@ -790,7 +775,7 @@ class Uno extends BaseModule
 		{
 			Queue::fromContainer($container)
 				->notice($user->getNickname(), 'You do not have that card.');
-			$this->setTimer($game, $source);
+			$game->getTimeoutController()->setTimer($game, $source);
 
 			return;
 		}
@@ -799,7 +784,7 @@ class Uno extends BaseModule
 		{
 			Queue::fromContainer($container)
 				->notice($user->getNickname(), 'That is not a valid move.');
-			$this->setTimer($game, $source);
+			$game->getTimeoutController()->setTimer($game, $source);
 
 			return;
 		}
@@ -812,7 +797,7 @@ class Uno extends BaseModule
 			{
 				Queue::fromContainer($container)
 					->notice($user->getNickname(), 'You have other cards you can play; play those before playing a Wild Draw Four.');
-				$this->setTimer($game, $source);
+				$game->getTimeoutController()->setTimer($game, $source);
 
 				return;
 			}
@@ -824,7 +809,7 @@ class Uno extends BaseModule
 			return;
 		}
 		
-		$this->setTimer($game, $source);
+		$game->getTimeoutController()->setTimer($game, $source);
 	}
 
 	/**
@@ -851,7 +836,7 @@ class Uno extends BaseModule
 			$formattedCard
 		);
 		
-		if (!empty($response))
+		if (!empty($response) && $response !== true)
 			$message .= ' ' . $response;
 
 		Queue::fromContainer($this->getContainer())
@@ -907,7 +892,6 @@ class Uno extends BaseModule
 	 */
 	public function stopGame(Channel $source)
 	{
-		$this->resetTimers();
 		$this->games[$source->getName()]->stop();
 		unset($this->games[$source->getName()]);
 	}
@@ -972,14 +956,14 @@ class Uno extends BaseModule
 			return;
 		}
 		
-		$this->resetTimers();
+		$game->getTimeoutController()->resetTimers();
 
 		$color = $args[0];
 		if (!in_array($color, ['r', 'b', 'g', 'y']))
 		{
 			Queue::fromContainer($container)
 				->privmsg($source->getName(), $user->getNickname() . ': That is not a valid color (r/g/b/y)');
-			$this->setTimer($game, $source);
+			$game->getTimeoutController()->setTimer($game, $source);
 
 			return;
 		}

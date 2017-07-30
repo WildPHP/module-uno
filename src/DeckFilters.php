@@ -31,7 +31,7 @@ class DeckFilters
 	{
 		return function (Card $card) use ($color)
 		{
-			return $card->getColor() != $color;
+			return $card->getColor() == $color;
 		};
 	}
 

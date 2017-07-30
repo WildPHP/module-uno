@@ -99,7 +99,7 @@ class Card
 		if ($this->getColor() == 'w' || $card->getColor() == 'w')
 			return true;
 
-		return $this->getColor() == $card->getColor() || $this->getType() == $card->getType();
+		return ($this->getColor() == $card->getColor()) || ($this->getType() == $card->getType());
 	}
 
 	/**
@@ -136,7 +136,7 @@ class Card
 		$type = $this->getType();
 		$color = self::STRINGMAP['color'][$color] ?? $color;
 		$type = self::STRINGMAP['type'][$type] ?? $type;
-		return $color . ($type !== false ? ' ' . $type : '');
+		return trim($color . ($type !== false ? ' ' . $type : ''));
 	}
 
 	/**

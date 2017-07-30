@@ -12,7 +12,8 @@ namespace WildPHP\Modules\Uno;
 class GameResponses
 {
 	const REVERSED = 'The order of players has been reversed.';
-	const SKIPPED_TWOPLAYER = '%s skipped a turn (two-player game)';
-	const DRAW_PLAYED = '%s drew %d cards and skipped a turn';
-	const SKIPPED = '%s skipped a turn';
+	const SKIPPED_TWOPLAYER = '%s skipped a turn (two-player game).';
+	const DRAW_PLAYED = '%s drew %d cards and skipped a turn.';
+	const DRAW_PLAYED_REPILE = '%s drew %d cards and skipped a turn. All previously played cards were repiled to the deck.';
+	const SKIPPED = '%s skipped a turn.';
 }

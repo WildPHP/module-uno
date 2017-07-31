@@ -31,10 +31,10 @@ class Deck extends Collection
 		$array = $this->getArrayCopy();
 		usort($array, function (Card $card1, Card $card2)
 		{
-			if ($card1->toString() == $card2->toString())
+			if ($card1->__toString() == $card2->__toString())
 				return 0;
 
-			return ($card1->toString() < $card2->toString()) ? -1 : 1;
+			return ($card1->__toString() < $card2->__toString()) ? -1 : 1;
 		});
 		$this->exchangeArray($array);
 	}
@@ -48,7 +48,7 @@ class Deck extends Collection
 		/** @var Card $card */
 		foreach ($cards as $key => $card)
 		{
-			$cards[$key] = $card->toString();
+			$cards[$key] = $card->__toString();
 		}
 		return $cards;
 	}

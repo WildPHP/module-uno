@@ -96,7 +96,7 @@ class HighScores
 	 */
 	public function calculatePointsForCard(Card $card): int
 	{
-		if ($card->toString() == CardTypes::WILD || $card->toString() == 'wd')
+		if ($card->getColor() == CardTypes::WILD)
 			return 50;
 		
 		switch ($card->getType())

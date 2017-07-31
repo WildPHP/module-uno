@@ -9,6 +9,8 @@
 namespace WildPHP\Modules\Uno;
 
 
+use ValidationClosures\Utils;
+
 class Dealer
 {
 	//@formatter:off
@@ -18,7 +20,6 @@ class Dealer
 		'y0', 'y1', 'y1', 'y2', 'y2', 'y3', 'y3', 'y4', 'y4', 'y5', 'y5', 'y6', 'y6', 'y7', 'y7', 'y8', 'y8', 'y9', 'y9', 'ys', 'ys', 'yr', 'yr', 'yd', 'yd', // Yellow stack
 		'g0', 'g1', 'g1', 'g2', 'g2', 'g3', 'g3', 'g4', 'g4', 'g5', 'g5', 'g6', 'g6', 'g7', 'g7', 'g8', 'g8', 'g9', 'g9', 'gs', 'gs', 'gr', 'gr', 'gd', 'gd', // Green stack
 		'w', 'w', 'wd', 'wd', 'w', 'w', 'wd', 'wd', // Wild cards
-		'g', 'r', 'y', 'b' // Cards used when a color is chosen.
 	];
 	//@formatter:on
 
@@ -26,7 +27,10 @@ class Dealer
 	 * @var Deck
 	 */
 	protected $availableCards;
-	
+
+	/**
+	 * Dealer constructor.
+	 */
 	public function __construct()
 	{
 		$this->availableCards = new Deck();
@@ -43,16 +47,14 @@ class Dealer
 	 */
 	public function draw($amount = 1, $excludeWild = false): array
 	{
-		$available = (array) $this->availableCards;
-		if ($amount > count($available))
-			$amount = count($available);
+		$available = $this->availableCards;
+		if ($amount > $available->count())
+			$amount = $available->count();
 
-		$available = array_filter($available, function (Card $card) use ($excludeWild)
-		{
-			return ($excludeWild && $card->getColor() != 'w') || !in_array($card->toString(), ['r', 'g', 'b', 'y']);
-		});
+		if ($excludeWild)
+			$available = $available->filter(Utils::invert(DeckFilters::color(CardTypes::WILD)));
 
-		$cardKeys = array_rand($available, $amount);
+		$cardKeys = array_rand((array) $available, $amount);
 
 		if (!is_array($cardKeys))
 			$cardKeys = [$cardKeys];
@@ -72,15 +74,18 @@ class Dealer
 	 */
 	public function repile(Participants $participants)
 	{
-		$cardsInDecks = [];
+		$deckCards = [];
 		/** @var Participant $participant */
-		foreach ((array) $participants as $participant)
+		foreach ($participants as $participant)
 		{
-			$cardsInDecks += $participant->getDeck()->allToString();
+			$deckCards = array_merge($deckCards, $participant->getDeck()
+				->allToString());
 		}
-		
-		$lookup = array_count_values($cardsInDecks);
-		foreach (self::$validCards as $card)
+
+		$allCards = self::$validCards;		
+		$newDeck = [];
+		$lookup = array_count_values($deckCards);
+		foreach ($allCards as $card)
 		{
 			if ($lookup[$card] ?? 0)
 			{
@@ -88,9 +93,10 @@ class Dealer
 			}
 			else
 			{
-				$this->availableCards->append(Card::fromString($card));
+				$newDeck[] = Card::fromString($card);
 			}
 		}
+		$this->availableCards->exchangeArray($newDeck);
 	}
 
 	/**
@@ -115,25 +121,5 @@ class Dealer
 		foreach ($cards as $card)
 			$deck->append($card);
 		return $cards;
-	}
-
-	/**
-	 * @param string $card
-	 *
-	 * @return bool
-	 */
-	public static function isValidCardByString(string $card): bool 
-	{
-		return in_array($card, self::$validCards);
-	}
-
-	/**
-	 * @param Card $card
-	 *
-	 * @return bool
-	 */
-	public static function isValidCard(Card $card): bool 
-	{
-		return self::isValidCardByString($card->toString());
 	}
 }

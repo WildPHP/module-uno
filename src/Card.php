@@ -105,7 +105,7 @@ class Card
 	/**
 	 * @return string
 	 */
-	public function toString(): string
+	public function __toString(): string
 	{
 		return $this->getColor() . $this->getType();
 	}
@@ -118,10 +118,10 @@ class Card
 		$color = $this->getColor();
 
 		if ($color == 'w' || !array_key_exists($color, self::COLORMAP))
-			return TextFormatter::bold($this->toString());
+			return TextFormatter::bold($this->__toString());
 
 		$color = self::COLORMAP[$color];
-		return TextFormatter::bold(TextFormatter::color($this->toString(), $color));
+		return TextFormatter::bold(TextFormatter::color($this->__toString(), $color));
 	}
 
 	/**
@@ -129,7 +129,7 @@ class Card
 	 */
 	public function toHumanString()
 	{
-		if ($this->toString() == 'wd')
+		if ($this->__toString() == 'wd')
 			return 'Wild Draw Four';
 
 		$color = $this->getColor();

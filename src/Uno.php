@@ -698,7 +698,7 @@ class Uno extends BaseModule
 		$participant = $game->getParticipants()->findForUser($user);
 		$validCards = $participant->getDeck()->getValidCards($game->getLastCard());
 		$currentCard = $game->getLastCard();
-		$readableCard = $currentCard->toString();
+		$readableCard = $currentCard->__toString();
 
 		if ($participant == $game->getPlayerOrder()->getCurrent())
 		{
@@ -789,7 +789,7 @@ class Uno extends BaseModule
 			return;
 		}
 		
-		if ($card->toString() == 'wd')
+		if ($card->__toString() == 'wd')
 		{
 			$cardsNoWD = $currentParticipant->getDeck()->filter(Utils::invert(DeckFilters::wild()));
 			

@@ -184,6 +184,8 @@ class Game
 
 		if ($nextParticipant->getUserObject()->getNickname() == $ownNickname)
 			BotParticipant::playAutomaticCard($this, $this->channel, Queue::fromContainer($this->getContainer()));
+		elseif (!$this->channel->getUserCollection()->contains($nextParticipant->getUserObject()))
+			BotParticipant::playAutomaticCardAndNotice($this, $this->channel, Queue::fromContainer($this->getContainer()));
 		else
 		{
 			Announcer::noticeCards($nextParticipant, Queue::fromContainer($this->getContainer()));

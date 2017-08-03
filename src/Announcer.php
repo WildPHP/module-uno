@@ -101,6 +101,6 @@ class Announcer
 		$game->getTimeoutController()->resetTimers();
 		$currentParticipant = $game->getPlayerOrder()->getCurrent();
 		$queue->privmsg($source->getName(),
-			$currentParticipant->getUserObject()->getNickname() . ' did not take action in the last 2 minutes, autoplaying...');
+			$currentParticipant->getUserObject()->getNickname() . ' did not take action in the last 2 minutes or has left the channel, autoplaying...');
 	}
 }

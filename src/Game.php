@@ -13,6 +13,7 @@ use WildPHP\Core\ComponentContainer;
 use WildPHP\Core\Configuration\Configuration;
 use WildPHP\Core\Connection\Queue;
 use WildPHP\Core\ContainerTrait;
+use WildPHP\Core\EventEmitter;
 use WildPHP\Core\Logger\Logger;
 use WildPHP\Core\Users\User;
 
@@ -67,6 +68,7 @@ class Game
 	 * @var Channel
 	 */
 	private $channel;
+	
 	/**
 	 * @var HighScores
 	 */
@@ -89,6 +91,30 @@ class Game
 		$this->timeoutController = $timeoutController;
 		$this->channel = $channel;
 		$this->highScores = $highScores;
+		
+		EventEmitter::fromContainer($container)->on('user.left', [$this, 'skipIfCurrentPlayerLeft']);
+		EventEmitter::fromContainer($container)->on('user.quit', [$this, 'skipIfCurrentPlayerLeft']);
+	}
+
+	/**
+	 * @param Channel $channel
+	 * @param User $user
+	 * @param Queue $queue
+	 */
+	public function skipIfCurrentPlayerLeft(Channel $channel, User $user, Queue $queue)
+	{
+		if ($channel !== $this->channel)
+			return;
+		
+		$participant = $this->participants->findForUser($user);
+		
+		if (!$participant)
+			return;
+		
+		if ($this->playerOrder->getCurrent() != $participant)
+			return;
+		
+		BotParticipant::playAutomaticCardAndNotice($this, $channel, $queue);
 	}
 
 	public function start()

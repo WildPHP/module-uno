@@ -68,6 +68,14 @@ class BotParticipant
 		}
 
 		$card = reset($validCards);
+		
+		if (!$card)
+		{
+			$game->pass();
+			$game->advanceNotify();
+			return;
+		}
+		
 		$result = $game->playCardWithChecks($card, $participant);
 
 		// If we played the last card and won, stop.

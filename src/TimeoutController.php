@@ -11,6 +11,7 @@ namespace WildPHP\Modules\Uno;
 
 use React\EventLoop\LoopInterface;
 use WildPHP\Core\Channels\Channel;
+use WildPHP\Core\Connection\Queue;
 use Yoshi2889\Tasks\CallbackTask;
 use Yoshi2889\Tasks\TaskController;
 
@@ -25,17 +26,23 @@ class TimeoutController
 	 * @var TaskController
 	 */
 	protected $taskController;
+	/**
+	 * @var Queue
+	 */
+	private $queue;
 
 	/**
 	 * TimeoutController constructor.
 	 *
 	 * @param callable $automaticPlayCallback
 	 * @param LoopInterface $loop
+	 * @param Queue $queue
 	 */
-	public function __construct($automaticPlayCallback, LoopInterface $loop)
+	public function __construct($automaticPlayCallback, LoopInterface $loop, Queue $queue)
 	{
 		$this->automaticPlayCallback = $automaticPlayCallback;
 		$this->taskController = new TaskController($loop);
+		$this->queue = $queue;
 	}
 
 	/**
@@ -44,7 +51,7 @@ class TimeoutController
 	 */
 	public function setTimer(Game $game, Channel $source)
 	{
-		$this->taskController->add(new CallbackTask($this->automaticPlayCallback, 120, [$game, $source]));
+		$this->taskController->add(new CallbackTask($this->automaticPlayCallback, 120, [$game, $source, $this->queue]));
 	}
 
 	public function resetTimers()

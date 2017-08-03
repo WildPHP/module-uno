@@ -8,9 +8,11 @@
 
 namespace WildPHP\Modules\Uno;
 
+use WildPHP\Core\Channels\Channel;
 use WildPHP\Core\ComponentContainer;
+use WildPHP\Core\Configuration\Configuration;
+use WildPHP\Core\Connection\Queue;
 use WildPHP\Core\ContainerTrait;
-use WildPHP\Core\EventEmitter;
 use WildPHP\Core\Logger\Logger;
 use WildPHP\Core\Users\User;
 
@@ -61,20 +63,32 @@ class Game
 	 * @var TimeoutController
 	 */
 	private $timeoutController;
+	/**
+	 * @var Channel
+	 */
+	private $channel;
+	/**
+	 * @var HighScores
+	 */
+	private $highScores;
 
 	/**
 	 * Game constructor.
 	 *
 	 * @param ComponentContainer $container
 	 * @param TimeoutController $timeoutController
+	 * @param Channel $channel
+	 * @param HighScores $highScores
 	 */
-	public function __construct(ComponentContainer $container, TimeoutController $timeoutController)
+	public function __construct(ComponentContainer $container, TimeoutController $timeoutController, Channel $channel, HighScores $highScores)
 	{
 		$this->setContainer($container);
 
 		$this->participants = new Participants();
 		$this->dealer = new Dealer();
 		$this->timeoutController = $timeoutController;
+		$this->channel = $channel;
+		$this->highScores = $highScores;
 	}
 
 	public function start()
@@ -84,6 +98,14 @@ class Game
 		$this->startTime = time();
 		$this->lastCard = $this->dealer->draw(1, true)[0];
 		Logger::fromContainer($this->getContainer())->debug('[UNO] Game started up');
+		
+		Queue::fromContainer($this->getContainer())->privmsg(
+			$this->channel->getName(),
+			sprintf('Game for channel %s started with %d participants!',
+				$this->channel->getName(),
+				$this->participants->count()
+			)
+		);
 	}
 
 	public function stop()
@@ -91,6 +113,50 @@ class Game
 		$this->getTimeoutController()->resetTimers();
 		$this->started = false;
 		Logger::fromContainer($this->getContainer())->debug('[UNO] Game stopped');
+		Queue::fromContainer($this->getContainer())->privmsg(
+			$this->channel->getName(),
+			sprintf('Game for channel %s stopped.',
+				$this->channel->getName()
+			)
+		);
+	}
+
+	/**
+	 * @return array
+	 */
+	public function draw(): array
+	{
+		$participant = $this->getPlayerOrder()->getCurrent();
+
+		if (!$this->getDealer()->canDraw(1))
+		{
+			$this->getDealer()->repile($this->getParticipants());
+			Queue::fromContainer($this->getContainer())
+				->privmsg($this->channel->getName(), 'No more cards in deck; all previously played cards repiled.');
+		}
+
+		$cards = $this->getDealer()->populate($participant->getDeck(), 1);
+
+		Queue::fromContainer($this->getContainer())
+			->privmsg($this->channel->getName(), $participant->getUserObject()->getNickname() . ' drew a card.');
+
+		$this->setCurrentPlayerHasDrawn(true);
+		return $cards;
+	}
+	
+	public function pass()
+	{
+		$participant = $this->getPlayerOrder()->getCurrent();
+		Queue::fromContainer($this->getContainer())
+			->privmsg($this->channel->getName(), $participant->getUserObject()->getNickname() . ' passed a turn.');
+	}
+
+	/**
+	 * @return TimeoutController
+	 */
+	public function getTimeoutController(): TimeoutController
+	{
+		return $this->timeoutController;
 	}
 
 	/**
@@ -103,9 +169,30 @@ class Game
 		$nextPlayer =$this->playerOrder->advance();
 		
 		Logger::fromContainer($this->getContainer())->debug('[UNO] Advancing game; next player is ' . $nextPlayer->getUserObject()->getNickname());
+		Announcer::announceCurrentTurn($this, $this->channel, Queue::fromContainer($this->getContainer()));
 		return $nextPlayer;
 	}
 
+	/**
+	 * @return Participant
+	 */
+	public function advanceNotify(): Participant
+	{
+		$nextParticipant = $this->advance();
+
+		$ownNickname = Configuration::fromContainer($this->getContainer())['currentNickname'];
+
+		if ($nextParticipant->getUserObject()->getNickname() == $ownNickname)
+			BotParticipant::playAutomaticCard($this, $this->channel, Queue::fromContainer($this->getContainer()));
+		else
+		{
+			Announcer::noticeCards($nextParticipant, Queue::fromContainer($this->getContainer()));
+			$this->getTimeoutController()->setTimer($this, $this->channel);
+		}
+
+		return $nextParticipant;
+	}
+	
 	/**
 	 * @param User $user
 	 *
@@ -124,7 +211,7 @@ class Game
 		Logger::fromContainer($this->getContainer())->debug('[UNO] Adding participant ' . $participantObject->getUserObject()->getNickname());
 		return $participantObject;
 	}
-	
+
 	/**
 	 * @param Deck $deck
 	 * @param string|Card $card
@@ -176,7 +263,7 @@ class Game
 
 				$cards = $this->dealer->populate($nextParticipant->getDeck(), $amount);
 				
-				EventEmitter::fromContainer($this->getContainer())->emit('uno.deck.populate', [$nextParticipant, $cards]);
+				Announcer::notifyNewCards($nextParticipant, $cards, Queue::fromContainer($this->getContainer()));
 				
 				$this->playerOrder->advance();
 				break;
@@ -188,6 +275,104 @@ class Game
 		}
 		
 		return sprintf($message, $nextParticipant->getUserObject()->getNickname());
+	}
+
+	/**
+	 * @param Card $card
+	 * @param Participant $participant
+	 *
+	 * @return bool Suggestion whether the game should announce the next player.
+	 */
+	public function playCardWithChecks(Card $card, Participant $participant)
+	{
+		$deck = $participant->getDeck();
+		$reverseState = $this->getPlayerOrder()->isReversed();
+		$nickname = $participant->getUserObject()->getNickname();
+
+		$response = $this->playCard($deck, $card);
+
+		$friendlyCardName = $card->toHumanString();
+		$formattedCard = $card->format();
+		$message = sprintf('%s played %s (%s)',
+			$nickname,
+			$friendlyCardName,
+			$formattedCard
+		);
+
+		if (!empty($response) && $response !== true)
+			$message .= ' ' . $response;
+
+		Queue::fromContainer($this->getContainer())
+			->privmsg($this->channel->getName(), $message);
+
+		if (count($deck) == 0)
+		{
+			$this->win($participant);
+			return false;
+		}
+
+		if ($reverseState != $this->getPlayerOrder()->isReversed())
+			Announcer::announceOrder($this, $this->channel, Queue::fromContainer($this->getContainer()));
+
+		if (count($deck) == 1)
+			Queue::fromContainer($this->getContainer())
+				->privmsg($this->channel->getName(), $participant->getUserObject()->getNickname() . ' has UNO!');
+
+		if (($colorChoosingParticipant = $this->getPlayerMustChooseColor()))
+		{
+			Queue::fromContainer($this->getContainer())
+				->privmsg($this->channel->getName(), $colorChoosingParticipant->getUserObject()->getNickname() . ' must now choose a color (r/g/b/y) (choose using the color command)');
+
+			return false;
+		}
+
+		return true;
+	}
+
+	/**
+	 * @param Participant $participant
+	 */
+	public function win(Participant $participant)
+	{
+		$nickname = $participant->getUserObject()->getNickname();
+		
+		Queue::fromContainer($this->getContainer())
+			->privmsg($this->channel->getName(), $nickname . ' has played their last card and won! GG!');
+
+		$participants = $this->getParticipants();
+		/** @var Participant $participant */
+		$points = 0;
+		foreach ($participants as $participant)
+		{
+			$deck = $participant->getDeck();
+			$points += $this->highScores->calculatePoints($deck);
+			$cards = $deck->formatAll();
+			if (empty($cards))
+				continue;
+			Queue::fromContainer($this->getContainer())
+				->privmsg($this->channel->getName(), $participant->getUserObject()->getNickname() . ' ended with these cards: ' . implode(', ', $cards));
+		}
+		$isHigher = $this->highScores->updateHighScore($nickname, $points);
+		Queue::fromContainer($this->getContainer())
+			->privmsg($this->channel->getName(), 'Altogether, ' . $nickname . ' has earned ' . $points . ' points this match.' . ($isHigher ? ' New high score!' : ''));
+
+		$this->stop();
+	}
+
+	/**
+	 * @return Dealer
+	 */
+	public function getDealer(): Dealer
+	{
+		return $this->dealer;
+	}
+
+	/**
+	 * @return Participants
+	 */
+	public function getParticipants()
+	{
+		return $this->participants;
 	}
 
 	/**
@@ -231,14 +416,6 @@ class Game
 	}
 
 	/**
-	 * @return Participants
-	 */
-	public function getParticipants()
-	{
-		return $this->participants;
-	}
-
-	/**
 	 * @return int
 	 */
 	public function getStartTime(): int
@@ -252,21 +429,5 @@ class Game
 	public function getPlayerOrder(): PlayerOrder
 	{
 		return $this->playerOrder;
-	}
-
-	/**
-	 * @return Dealer
-	 */
-	public function getDealer(): Dealer
-	{
-		return $this->dealer;
-	}
-
-	/**
-	 * @return TimeoutController
-	 */
-	public function getTimeoutController(): TimeoutController
-	{
-		return $this->timeoutController;
 	}
 }

@@ -46,6 +46,12 @@ class HighScores
 		$this->save();
 	}
 
+	/**
+	 * @param string $nickname
+	 * @param int $newPoints
+	 *
+	 * @return bool
+	 */
 	public function updateHighScore(string $nickname, int $newPoints)
 	{
 		if ($newPoints <= $this->getHighScore($nickname))

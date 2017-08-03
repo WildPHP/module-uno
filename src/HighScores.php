@@ -111,7 +111,6 @@ class HighScores
 			case CardTypes::REVERSE:
 			case CardTypes::DRAW:
 				return 20;
-				break;
 				
 			default:
 				return (int) $card->getType();

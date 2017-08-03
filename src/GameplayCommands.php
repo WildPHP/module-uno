@@ -103,6 +103,9 @@ class GameplayCommands
 		}
 
 		$participant = $game->getParticipants()->findForUser($user);
+		
+		if (!$participant)
+			return;
 
 		if ($participant == $game->getPlayerOrder()->getCurrent())
 		{

@@ -214,7 +214,7 @@ class Game
 
 	/**
 	 * @param Deck $deck
-	 * @param string|Card $card
+	 * @param Card $card
 	 *
 	 * @return bool|string
 	 */
@@ -321,7 +321,12 @@ class Game
 		if (($colorChoosingParticipant = $this->getPlayerMustChooseColor()))
 		{
 			Queue::fromContainer($this->getContainer())
-				->privmsg($this->channel->getName(), $colorChoosingParticipant->getUserObject()->getNickname() . ' must now choose a color (r/g/b/y) (choose using the color command)');
+				->privmsg($this->channel->getName(), 
+					sprintf(
+					'%s must now choose a color (r/g/b/y) (choose using the color command)',
+					$colorChoosingParticipant->getUserObject()->getNickname()
+					)
+				);
 
 			return false;
 		}
@@ -350,7 +355,10 @@ class Game
 			if (empty($cards))
 				continue;
 			Queue::fromContainer($this->getContainer())
-				->privmsg($this->channel->getName(), $participant->getUserObject()->getNickname() . ' ended with these cards: ' . implode(', ', $cards));
+				->privmsg($this->channel->getName(), sprintf('%s ended with these cards: %s',
+					$participant->getUserObject()->getNickname(),
+					implode(', ', $cards)
+				));
 		}
 		$isHigher = $this->highScores->updateHighScore($nickname, $points);
 		Queue::fromContainer($this->getContainer())

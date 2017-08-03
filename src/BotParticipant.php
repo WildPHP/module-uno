@@ -91,7 +91,10 @@ class BotParticipant
 			$game->playCard($deck, $color);
 			$readableColor = $color->toHumanString();
 			$formattedColor = $color->format();
-			$queue->privmsg($source->getName(), $participant->getUserObject()->getNickname() . ' picked color ' . $readableColor . ' (' . $formattedColor . ')');
+			$queue->privmsg(
+				$source->getName(),
+				$participant->getUserObject()->getNickname() . ' picked color ' . $readableColor . ' (' . $formattedColor . ')'
+			);
 		}
 		
 		$game->advanceNotify();

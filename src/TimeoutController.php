@@ -16,7 +16,7 @@ use Yoshi2889\Tasks\CallbackTask;
 use Yoshi2889\Tasks\TaskController;
 
 class TimeoutController
-{	
+{
 	/**
 	 * @var callable
 	 */

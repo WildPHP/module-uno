@@ -9,7 +9,7 @@
 namespace WildPHP\Modules\Uno;
 
 
-use ValidationClosures\Utils;
+use ValidationClosures\Utils as ValUtils;
 
 class Dealer
 {
@@ -52,7 +52,7 @@ class Dealer
 			$amount = $available->count();
 
 		if ($excludeWild)
-			$available = $available->filter(Utils::invert(DeckFilters::color(CardTypes::WILD)));
+			$available = $available->filter(ValUtils::invert(DeckFilters::color(CardTypes::WILD)));
 
 		$cardKeys = array_rand((array) $available, $amount);
 
@@ -113,7 +113,7 @@ class Dealer
 	 * @param Deck $deck
 	 * @param int $amount
 	 *
-	 * @return mixed
+	 * @return Card[]
 	 */
 	public function populate(Deck $deck, int $amount = 10)
 	{

@@ -141,10 +141,11 @@ class Game
 		Logger::fromContainer($this->getContainer())->debug('[UNO] Game stopped');
 		Queue::fromContainer($this->getContainer())->privmsg(
 			$this->channel->getName(),
-			sprintf('Game for channel %s stopped.',
+			sprintf('Game for channel %s stopped. This game lasted ' . date('H:i:s', (time() - $this->startTime)),
 				$this->channel->getName()
 			)
 		);
+		EventEmitter::fromContainer($this->getContainer())->emit('uno.game.stopped', [$this, $this->channel]);
 	}
 
 	/**

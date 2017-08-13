@@ -44,7 +44,7 @@ class BotParticipant
 		// Got no cards, but can still draw
 		if (empty((array) $validCards) && !$game->currentPlayerHasDrawn())
 		{
-			$game->getDealer()->populate($participant->getDeck(), 1);
+			$game->draw();
 			$validCards = $participant->getDeck()
 				->getValidCards($game->getLastCard());
 		}

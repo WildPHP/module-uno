@@ -91,9 +91,6 @@ class Game
 		$this->timeoutController = $timeoutController;
 		$this->channel = $channel;
 		$this->highScores = $highScores;
-		
-		EventEmitter::fromContainer($container)->on('user.left', [$this, 'skipIfCurrentPlayerLeft']);
-		EventEmitter::fromContainer($container)->on('user.quit', [$this, 'skipIfCurrentPlayerLeft']);
 	}
 
 	/**
@@ -132,6 +129,9 @@ class Game
 				$this->participants->count()
 			)
 		);
+
+		EventEmitter::fromContainer($this->getContainer())->on('user.left', [$this, 'skipIfCurrentPlayerLeft']);
+		EventEmitter::fromContainer($this->getContainer())->on('user.quit', [$this, 'skipIfCurrentPlayerLeft']);
 	}
 
 	public function stop()
@@ -146,6 +146,8 @@ class Game
 			)
 		);
 		EventEmitter::fromContainer($this->getContainer())->emit('uno.game.stopped', [$this, $this->channel]);
+		EventEmitter::fromContainer($this->getContainer())->removeListener('user.left', [$this, 'skipIfCurrentPlayerLeft']);
+		EventEmitter::fromContainer($this->getContainer())->removeListener('user.quit', [$this, 'skipIfCurrentPlayerLeft']);
 	}
 
 	/**
@@ -337,6 +339,7 @@ class Game
 		if (count($deck) == 0)
 		{
 			$this->win($participant);
+			$this->stop();
 			return false;
 		}
 

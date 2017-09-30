@@ -11,8 +11,11 @@ namespace WildPHP\Modules\Uno;
 
 use ValidationClosures\Utils as ValUtils;
 use WildPHP\Core\Channels\Channel;
+use WildPHP\Core\Commands\Command;
 use WildPHP\Core\Commands\CommandHandler;
 use WildPHP\Core\Commands\CommandHelp;
+use WildPHP\Core\Commands\ParameterStrategy;
+use WildPHP\Core\Commands\StringParameter;
 use WildPHP\Core\ComponentContainer;
 use WildPHP\Core\Connection\Queue;
 use WildPHP\Core\ContainerTrait;
@@ -39,35 +42,63 @@ class GameplayCommands
 		$this->setContainer($container);
 		$this->games = $games;
 
-		$commandHelp = new CommandHelp();
-		$commandHelp->append('UNO: Pass your current turn.');
-		CommandHandler::fromContainer($container)
-			->registerCommand('pass', [$this, 'passCommand'], $commandHelp, 0, 0);
+		CommandHandler::fromContainer($container)->registerCommand('pass',
+			new Command(
+				[$this, 'passCommand'],
+				new ParameterStrategy(0, 0),
+				new CommandHelp([
+					'UNO: Pass your current turn.'
+				])
+			));
 
-		$commandHelp = new CommandHelp();
-		$commandHelp->append('UNO: Play a card. Usage: play [card]');
-		CommandHandler::fromContainer($container)
-			->registerCommand('play', [$this, 'playCommand'], $commandHelp, 1, 1);
+		CommandHandler::fromContainer($container)->registerCommand('play',
+			new Command(
+				[$this, 'playCommand'],
+				new ParameterStrategy(1, 1, [
+					'card' => new StringParameter()
+				]),
+				new CommandHelp([
+					'UNO: Play a card. Usage: play [card]'
+				])
+			));
 
-		$commandHelp = new CommandHelp();
-		$commandHelp->append('UNO: Choose a color. Usage: color [color]');
-		CommandHandler::fromContainer($container)
-			->registerCommand('color', [$this, 'colorCommand'], $commandHelp, 1, 1);
+		CommandHandler::fromContainer($container)->registerCommand('color',
+			new Command(
+				[$this, 'colorCommand'],
+				new ParameterStrategy(1, 1, [
+					'color' => new StringParameter()
+				]),
+				new CommandHelp([
+					'UNO: Choose a color. Usage: color [color]'
+				])
+			));
 
-		$commandHelp = new CommandHelp();
-		$commandHelp->append('UNO: Draw a card from the stack.');
-		CommandHandler::fromContainer($container)
-			->registerCommand('draw', [$this, 'drawCommand'], $commandHelp, 0, 0);
+		CommandHandler::fromContainer($container)->registerCommand('draw',
+			new Command(
+				[$this, 'drawCommand'],
+				new ParameterStrategy(0, 0),
+				new CommandHelp([
+					'UNO: Draw a card from the stack.'
+				])
+			));
 
-		$commandHelp = new CommandHelp();
-		$commandHelp->append('UNO: Show your current cards.');
-		CommandHandler::fromContainer($container)
-			->registerCommand('cards', [$this, 'cardsCommand'], $commandHelp, 0, 0);
-		
-		$commandHelp = new CommandHelp();
-		$commandHelp->append('UNO: Show all available valid moves.');
-		CommandHandler::fromContainer($container)
-			->registerCommand('validmoves', [$this, 'validmovesCommand'], $commandHelp, 0, 0);
+		CommandHandler::fromContainer($container)->registerCommand('cards',
+			new Command(
+				[$this, 'cardsCommand'],
+				new ParameterStrategy(0, 0),
+				new CommandHelp([
+					'UNO: Show your current cards in a private message.'
+				])
+			));
+
+		CommandHandler::fromContainer($container)->registerCommand('validmoves',
+			new Command(
+				[$this, 'validmovesCommand'],
+				new ParameterStrategy(0, 0),
+				new CommandHelp([
+					'UNO: Show all available valid moves for the current top card.'
+				])
+			));
 
 		CommandHandler::fromContainer($container)
 			->alias('play', 'pl');
@@ -154,7 +185,7 @@ class GameplayCommands
 
 		$game->getTimeoutController()->resetTimers();
 
-		$color = $args[0];
+		$color = strtolower($args['color']);
 		if (!in_array($color, ['r', 'b', 'g', 'y']))
 		{
 			Queue::fromContainer($container)
@@ -369,7 +400,7 @@ class GameplayCommands
 
 		$game->getTimeoutController()->resetTimers();
 
-		$card = strtolower($args[0]);
+		$card = strtolower($args['card']);
 		$card = Card::fromString($card);
 		if (!$currentParticipant->getDeck()->contains($card))
 		{

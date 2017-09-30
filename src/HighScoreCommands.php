@@ -9,8 +9,10 @@
 namespace WildPHP\Modules\Uno;
 
 use WildPHP\Core\Channels\Channel;
+use WildPHP\Core\Commands\Command;
 use WildPHP\Core\Commands\CommandHandler;
 use WildPHP\Core\Commands\CommandHelp;
+use WildPHP\Core\Commands\ParameterStrategy;
 use WildPHP\Core\ComponentContainer;
 use WildPHP\Core\Connection\Queue;
 use WildPHP\Core\Connection\TextFormatter;
@@ -37,10 +39,14 @@ class HighScoreCommands
 		$this->setContainer($container);
 		$this->highScores = $highScores;
 
-		$commandHelp = new CommandHelp();
-		$commandHelp->append('UNO: Show high scores.');
-		CommandHandler::fromContainer($container)
-			->registerCommand('unohs', [$this, 'unohsCommand'], $commandHelp, 0, 0);
+		CommandHandler::fromContainer($container)->registerCommand('unohs',
+			new Command(
+				[$this, 'unohsCommand'],
+				new ParameterStrategy(0, 0),
+				new CommandHelp([
+					'UNO: Show high scores'
+				])
+			));
 	}
 
 	/**

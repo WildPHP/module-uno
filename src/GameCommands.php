@@ -10,8 +10,10 @@ namespace WildPHP\Modules\Uno;
 
 
 use WildPHP\Core\Channels\Channel;
+use WildPHP\Core\Commands\Command;
 use WildPHP\Core\Commands\CommandHandler;
 use WildPHP\Core\Commands\CommandHelp;
+use WildPHP\Core\Commands\ParameterStrategy;
 use WildPHP\Core\ComponentContainer;
 use WildPHP\Core\Configuration\Configuration;
 use WildPHP\Core\Connection\Queue;
@@ -45,38 +47,72 @@ class GameCommands
 		$this->games = $games;
 		$this->highScores = $highScores;
 
-		$commandHelp = new CommandHelp();
-		$commandHelp->append('Initiates a new game of UNO. No arguments.');
-		CommandHandler::fromContainer($container)->registerCommand('newgame', [$this, 'newgameCommand'], $commandHelp, 0, 0, 'newgame');
+		CommandHandler::fromContainer($container)->registerCommand('newgame',
+			new Command(
+				[$this, 'newgameCommand'],
+				new ParameterStrategy(0, 0),
+				new CommandHelp([
+					'Initiates a new game of UNO. No arguments.'
+				]),
+				'newgame'
+			));
 
-		$commandHelp = new CommandHelp();
-		$commandHelp->append('Starts the initiated game of UNO. Use after all participants have joined. No arguments.');
-		CommandHandler::fromContainer($container)->registerCommand('start', [$this, 'startCommand'], $commandHelp, 0, 0, 'newgame');
-		
-		$commandHelp = new CommandHelp();
-		$commandHelp->append('Instruct the bot to join the current running game.');
-		CommandHandler::fromContainer($container)
-			->registerCommand('botenter', [$this, 'botenterCommand'], $commandHelp, 0, 0, 'botenter');
+		CommandHandler::fromContainer($container)->registerCommand('start',
+			new Command(
+				[$this, 'startCommand'],
+				new ParameterStrategy(0, 0),
+				new CommandHelp([
+					'Starts the initiated game of UNO. Use after all participants have joined. No arguments.'
+				]),
+				'newgame'
+			));
 
-		$commandHelp = new CommandHelp();
-		$commandHelp->append('Stops the running game of UNO.');
-		CommandHandler::fromContainer($container)
-			->registerCommand('stop', [$this, 'stopCommand'], $commandHelp, 0, 0, 'newgame');
+		CommandHandler::fromContainer($container)->registerCommand('botenter',
+			new Command(
+				[$this, 'botenterCommand'],
+				new ParameterStrategy(0, 0),
+				new CommandHelp([
+					'Instruct the bot to join the current joinable game of UNO. No arguments.'
+				]),
+				'botenter'
+			));
 
-		$commandHelp = new CommandHelp();
-		$commandHelp->append('Enter as a participant in the running game of UNO.');
-		CommandHandler::fromContainer($container)
-			->registerCommand('enter', [$this, 'enterCommand'], $commandHelp, 0, 0);
+		CommandHandler::fromContainer($container)->registerCommand('stop',
+			new Command(
+				[$this, 'stopCommand'],
+				new ParameterStrategy(0, 0),
+				new CommandHelp([
+					'Stops the running game of UNO. No arguments.'
+				]),
+				'newgame'
+			));
 
-		$commandHelp = new CommandHelp();
-		$commandHelp->append('UNO: Toggle the displaying of colors in your private messages for the current session.');
-		CommandHandler::fromContainer($container)
-			->registerCommand('togglecolors', [$this, 'togglecolorsCommand'], $commandHelp, 0, 0);
+		CommandHandler::fromContainer($container)->registerCommand('enter',
+			new Command(
+				[$this, 'enterCommand'],
+				new ParameterStrategy(0, 0),
+				new CommandHelp([
+					'Enter as a participant in the joinable game of UNO. No arguments.'
+				])
+			));
 
-		$commandHelp = new CommandHelp();
-		$commandHelp->append('UNO: List basic game rules.');
-		CommandHandler::fromContainer($container)
-			->registerCommand('unorules', [$this, 'unorulesCommand'], $commandHelp, 0, 0);
+		CommandHandler::fromContainer($container)->registerCommand('togglecolors',
+			new Command(
+				[$this, 'togglecolorsCommand'],
+				new ParameterStrategy(0, 0),
+				new CommandHelp([
+					'UNO: Toggle the displaying of colors in your private messages for the current session. No arguments.'
+				])
+			));
+
+		CommandHandler::fromContainer($container)->registerCommand('unorules',
+			new Command(
+				[$this, 'unorulesCommand'],
+				new ParameterStrategy(0, 0),
+				new CommandHelp([
+					'UNO: List basic game rules. No arguments.'
+				])
+			));
 	}
 
 	/**

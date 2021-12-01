@@ -9,7 +9,7 @@
         }
     ],
     "require": {
-        "yoshi2889/collections": "^0.1",
+        "yoshi2889/collections": "^0.2",
         "yoshi2889/tasks": "^0.1.1"
     },
     "autoload": {
